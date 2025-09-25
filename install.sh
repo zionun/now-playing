@@ -17,24 +17,46 @@ fi
 echo "📦 Updating system packages..."
 apt update && apt upgrade -y
 
-# Install Node.js 18
-echo "📥 Installing Node.js 18..."
-curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-apt install -y nodejs git
+# Check if Node.js is already installed (from DietPi auto-setup)
+if command -v node >/dev/null 2>&1; then
+    NODE_VERSION=$(node --version)
+    echo "✅ Node.js is already installed: $NODE_VERSION"
+    
+    # Check if version is adequate (18+)
+    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
+    if [ "$NODE_MAJOR" -lt 18 ]; then
+        echo "⚠️  Node.js version too old, updating to 18..."
+        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+        apt install -y nodejs
+    fi
+else
+    # Fallback: install Node.js if not present
+    echo "📥 Installing Node.js 18..."
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    apt install -y nodejs
+fi
+
+# Check if Git is already installed (from DietPi auto-setup)
+if ! command -v git >/dev/null 2>&1; then
+    echo "📥 Installing Git..."
+    apt install -y git
+else
+    echo "✅ Git is already installed"
+fi
 
 # Install PM2 globally
 echo "🔧 Installing PM2..."
 npm install -g pm2
 
-# Create app directory
+# Create app directory and copy files
 APP_DIR="/opt/now-playing"
 echo "📁 Creating application directory: $APP_DIR"
 mkdir -p $APP_DIR
-cd $APP_DIR
 
-# Clone repository (replace with actual repo URL)
-echo "⬇️  Cloning repository..."
-git clone https://github.com/your-username/now-playing-plex.git .
+# Copy current repository contents to /opt/now-playing
+echo "📋 Copying application files..."
+cp -r . $APP_DIR/
+cd $APP_DIR
 
 # Install dependencies
 echo "📦 Installing dependencies..."

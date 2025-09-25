@@ -87,7 +87,7 @@ A modern, touch-friendly web application that displays currently playing music f
    AUTO_SETUP_SSH_SERVER_INDEX=-2  # OpenSSH
    
    # Auto-install required software
-   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 9 113 160  # Git, Node.js, Chromium and Unclutter
+   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 9 113  # Git, Node.js and Chromium
    ```
 
    **Edit `dietpi-wifi.txt`** (WiFi credentials):
@@ -203,12 +203,16 @@ chmod +x install.sh
 ### Step 6: Configure Kiosk Mode Auto-start
 
 ```bash
+# Configure LightDM to hide cursor permanently (better than unclutter)
+sudo tee -a /etc/lightdm/lightdm.conf << 'EOF'
+
+[Seat:*]
+xserver-command=X -nocursor
+EOF
+
 # Create kiosk startup script for DietPi
 sudo mkdir -p /home/dietpi/.config/openbox
 sudo tee /home/dietpi/.config/openbox/autostart << 'EOF'
-# Hide cursor after 0.1 seconds of inactivity
-unclutter -idle 0.1 &
-
 # Ensure Now Playing server is running
 cd /home/dietpi/now-playing
 pm2 start ecosystem.config.js 2>/dev/null || true

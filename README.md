@@ -87,7 +87,7 @@ A modern, touch-friendly web application that displays currently playing music f
    AUTO_SETUP_SSH_SERVER_INDEX=-2  # OpenSSH
    
    # Auto-install required software
-   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 9 113  # Git, Node.js and Chromium
+   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 9 113 160  # Git, Node.js, Chromium and Unclutter
    ```
 
    **Edit `dietpi-wifi.txt`** (WiFi credentials):
@@ -136,28 +136,16 @@ A modern, touch-friendly web application that displays currently playing music f
    # You may be prompted to change passwords (recommended)
    ```
 
-4. **Install Additional Software**:
-   ```bash
-   # Run DietPi software installer
-   dietpi-software
-   
-   # Select and install:
-   # [113] Chromium Browser - for kiosk display
-   # [160] Unclutter - to hide mouse cursor
-   
-   # Or install via command line:
-   dietpi-software install 113 160
-   ```
-
-5. **Configure Performance Settings**:
+4. **Configure Performance Settings**:
    ```bash
    # Open DietPi configuration
    dietpi-config
    
    # Navigate to:
    # → Performance Options → CPU Governor → "performance"  
-   # → Performance Options → Memory Split → 128MB
    # → AutoStart Options → 11: LightDM (for GUI/kiosk mode)
+   
+   # Note: GPU memory split is configured in Step 4 via /boot/config.txt
    ```
 
 ### Step 4: Performance Optimizations
@@ -181,7 +169,7 @@ dtoverlay=disable-bt
 dtoverlay=disable-wifi-poweroff
 
 # HyperPixel 4.0 Square (uncomment if using)
-# dtoverlay=hyperpixel4-square
+# dtoverlay=vc4-kms-dpi-hyperpixel4sq
 " | sudo tee -a /boot/config.txt
 
 # Optimize filesystem

@@ -34,8 +34,6 @@ A modern, touch-friendly web application that displays currently playing music f
 
 ## 🥧 Fresh Raspberry Pi Setup (Complete Guide)
 
-## 🥧 Fresh Raspberry Pi Setup (Complete Guide)
-
 ### Step 1: Choose Your Operating System
 
 **🏆 Recommended: DietPi (Best Performance)**

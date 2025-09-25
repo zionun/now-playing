@@ -213,7 +213,7 @@ sudo mkdir -p /home/dietpi/.config/openbox
 sudo tee /home/dietpi/.config/openbox/autostart << 'EOF'
 # Ensure Now Playing server is running
 cd /home/dietpi/now-playing
-pm2 start ecosystem.config.js 2>/dev/null || true
+pm2 start ecosystem.config.cjs 2>/dev/null || true
 pm2 save
 
 # Wait for server to start
@@ -596,7 +596,7 @@ The application will be available at `http://localhost:3001`
 npm install -g pm2
 
 # Start with PM2 using the ecosystem file
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 
 # Save PM2 configuration
 pm2 save
@@ -701,7 +701,7 @@ now-playing/
 │   └── package.json
 ├── install.sh             # Installation script
 ├── kiosk.sh              # Kiosk mode script
-└── ecosystem.config.js    # PM2 configuration
+└── ecosystem.config.cjs    # PM2 configuration
 ```
 
 ### Available Scripts

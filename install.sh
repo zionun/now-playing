@@ -68,7 +68,7 @@ npm run build
 
 # Setup PM2
 echo "🔄 Setting up PM2..."
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 pm2 startup systemd -u root --hp /root
 pm2 save
 

@@ -72,14 +72,13 @@ A modern, touch-friendly web application that displays currently playing music f
    
    # Enable automated setup
    AUTO_SETUP_AUTOMATED=1
-   AUTO_SETUP_ACCEPT_LICENSE=1
    
    # Network configuration for WiFi
    AUTO_SETUP_NET_WIFI_ENABLED=1
    AUTO_SETUP_NET_WIFI_COUNTRY_CODE=IT  # Change to your country code
    
    # System settings
-   AUTO_SETUP_NET_HOSTNAME=nowplaying-pi
+   AUTO_SETUP_NET_HOSTNAME=nowplaying
    AUTO_SETUP_GLOBAL_PASSWORD=YOUR_SECURE_PASSWORD  # Change this!
    AUTO_SETUP_TIMEZONE=Europe/Rome  # Change to your timezone
    AUTO_SETUP_LOCALE=en_GB.UTF-8
@@ -88,7 +87,7 @@ A modern, touch-friendly web application that displays currently playing music f
    AUTO_SETUP_SSH_SERVER_INDEX=-2  # OpenSSH
    
    # Auto-install required software
-   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 130  # Git and Node.js
+   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 9 113  # Git, Node.js and Chromium
    ```
 
    **Edit `dietpi-wifi.txt`** (WiFi credentials):
@@ -123,9 +122,9 @@ A modern, touch-friendly web application that displays currently playing music f
 2. **Find Your Pi's IP Address**:
    ```bash
    # On your computer, scan the network:
-   nmap -sn 192.168.1.0/24 | grep -A2 "nowplaying-pi\|Raspberry"
+   nmap -sn 192.168.1.0/24 | grep -A2 "nowplaying\|Raspberry"
    
-   # Or check your router's admin panel for "nowplaying-pi"
+   # Or check your router's admin panel for "nowplaying"
    ```
 
 3. **SSH Into Your Pi**:
@@ -277,12 +276,13 @@ If you prefer the standard Raspberry Pi OS:
 ssh pi@YOUR_PI_IP
 sudo apt update && sudo apt upgrade -y
 
-# Install Node.js 22.x
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
+# Node.js, Git, and Chromium are already installed via automation
+# Verify installation
+node --version  # Should show v22+
+npm --version   # Should show 10+
 
-# Install display packages
-sudo apt install -y xorg openbox lightdm chromium-browser unclutter
+# Install display packages  
+sudo apt install -y xorg openbox lightdm unclutter
 
 # Install HyperPixel (if using)
 curl https://get.pimoroni.com/hyperpixel4 | bash
@@ -371,12 +371,13 @@ sudo systemctl disable dphys-swapfile
 # Check installation log
 sudo cat /var/tmp/dietpi/logs/dietpi-firstrun-setup.log
 
-# If Node.js installation failed, install manually:
-sudo dietpi-software install 9 17  # Node.js and Git
+# Verify automated software installation worked:
+node --version  # Should show v22+
+git --version   # Should show 2.x+
+chromium-browser --version  # Should show version info
 
-# Verify installation
-node --version  # Should show v18+ or v20+
-npm --version   # Should show 8+ or 9+
+# If any software is missing, install manually:
+sudo dietpi-software install 9 17 113  # Node.js, Git, Chromium
 ```
 
 **Headless setup not working:**
@@ -385,7 +386,7 @@ npm --version   # Should show 8+ or 9+
 AUTO_SETUP_SSH_SERVER_INDEX=-2
 
 # Find Pi on network manually:
-# Check router admin panel for device named "nowplaying-pi" 
+# Check router admin panel for device named "nowplaying" 
 # Or try common IPs: ssh root@192.168.1.100, ssh root@192.168.1.101, etc.
 
 # If still can't connect, use monitor and keyboard for initial setup

@@ -1,0 +1,235 @@
+.touch-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn var(--transition-medium) ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  max-width: 90vw;
+  text-align: center;
+}
+
+/* User Switcher */
+.user-switcher {
+  color: var(--text-primary);
+}
+
+.user-switcher h3 {
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.user-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.user-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid transparent;
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 80px;
+}
+
+.user-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--accent-color);
+}
+
+.user-button.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-button span {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Media Controls */
+.media-controls {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.control-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  backdrop-filter: blur(10px);
+}
+
+.control-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+.control-button:active {
+  transform: scale(0.95);
+}
+
+.control-button.play-pause {
+  width: 80px;
+  height: 80px;
+  background: var(--accent-color);
+}
+
+.control-button.play-pause:hover {
+  background: #f39c12;
+}
+
+.control-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.control-button.play-pause svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* Overlay Track Info */
+.overlay-track-info {
+  color: var(--text-primary);
+  max-width: 80vw;
+}
+
+.overlay-track-info h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.overlay-track-info p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .overlay-content {
+    gap: 1.5rem;
+    padding: 1rem;
+  }
+  
+  .media-controls {
+    gap: 1.5rem;
+  }
+  
+  .control-button {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .control-button.play-pause {
+    width: 70px;
+    height: 70px;
+  }
+  
+  .control-button svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .control-button.play-pause svg {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .user-button {
+    min-width: 60px;
+    padding: 0.8rem;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .overlay-track-info h2 {
+    font-size: 1.2rem;
+  }
+  
+  .overlay-track-info p {
+    font-size: 1rem;
+  }
+}
+
+/* Square screen adjustments */
+@media (aspect-ratio: 1/1) {
+  .overlay-content {
+    gap: 1.8rem;
+  }
+  
+  .media-controls {
+    gap: 1.8rem;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+  .user-buttons {
+    gap: 0.8rem;
+  }
+  
+  .user-button {
+    min-width: 50px;
+    padding: 0.6rem;
+  }
+  
+  .user-button span {
+    font-size: 0.8rem;
+  }
+}

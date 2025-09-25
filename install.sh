@@ -103,6 +103,26 @@ systemctl enable kiosk.service
 
 echo "✅ Installation completed!"
 echo ""
+
+# Ask user about cleaning up the original directory
+ORIGINAL_DIR=$(pwd)
+echo "🧹 Cleanup Options:"
+echo "The application has been installed to /opt/now-playing"
+echo "Current directory: $ORIGINAL_DIR"
+echo ""
+read -p "Do you want to remove the original directory? (y/N): " -n 1 -r
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    cd /
+    echo "🗑️  Removing original directory: $ORIGINAL_DIR"
+    rm -rf "$ORIGINAL_DIR"
+    echo "✅ Original directory removed"
+else
+    echo "📁 Original directory kept: $ORIGINAL_DIR"
+fi
+
+echo ""
 echo "📋 Next steps:"
 echo "1. Reboot your Raspberry Pi"
 echo "2. Access configuration at http://your-pi-ip:3001/config"

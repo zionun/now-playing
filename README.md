@@ -55,38 +55,111 @@ A modern, touch-friendly web application that displays currently playing music f
 1. **Download DietPi**:
    - Go to [DietPi.com](https://dietpi.com/#download)
    - Download **"DietPi ARMv8 64-bit"** for Pi Zero 2 W
-   - Or use [Raspberry Pi Imager](https://www.raspberrypi.org/software/) and select DietPi from OS list
+   - Extract the `.img` file using 7-Zip (Windows) or The Unarchiver (macOS)
 
-2. **Configure the Image**:
-   - If using Pi Imager, click the gear icon (⚙️)
-   - **Enable SSH**: Set username `dietpi` and password `dietpi` (you'll change this)
-   - **Configure WiFi**: Enter your network credentials  
-   - **Set locale**: Configure your timezone
-   - Flash to your SD card
+2. **Flash the Image**:
+   - Download and install [balenaEtcher](https://www.balena.io/etcher/)
+   - Insert your microSD card (16GB+ recommended)
+   - Flash the DietPi `.img` file to the SD card using balenaEtcher
+   - **Do NOT eject the SD card yet** - we need to configure it for headless setup
+
+3. **Configure for Headless Setup**:
+   After flashing, the SD card will remount with a boot partition. Edit these files:
+
+   **Edit `dietpi.txt`** (main configuration file):
+   ```bash
+   # Open the file in a text editor and modify these lines:
+   
+   # Enable automated setup
+   AUTO_SETUP_AUTOMATED=1
+   AUTO_SETUP_ACCEPT_LICENSE=1
+   
+   # Network configuration for WiFi
+   AUTO_SETUP_NET_WIFI_ENABLED=1
+   AUTO_SETUP_NET_WIFI_COUNTRY_CODE=IT  # Change to your country code
+   
+   # System settings
+   AUTO_SETUP_NET_HOSTNAME=nowplaying-pi
+   AUTO_SETUP_GLOBAL_PASSWORD=YOUR_SECURE_PASSWORD  # Change this!
+   AUTO_SETUP_TIMEZONE=Europe/Rome  # Change to your timezone
+   AUTO_SETUP_LOCALE=en_GB.UTF-8
+   
+   # Enable SSH for remote access
+   AUTO_SETUP_SSH_SERVER_INDEX=-2  # OpenSSH
+   
+   # Auto-install required software
+   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 130  # Git and Node.js
+   ```
+
+   **Edit `dietpi-wifi.txt`** (WiFi credentials):
+   ```bash
+   # WiFi network settings
+   aWIFI_SSID[0]='YOUR_WIFI_NAME'
+   aWIFI_KEY[0]='YOUR_WIFI_PASSWORD'
+   
+   # Optional: Add backup WiFi network
+   aWIFI_SSID[1]='BACKUP_WIFI_NAME' 
+   aWIFI_KEY[1]='BACKUP_WIFI_PASSWORD'
+   ```
+
+4. **Eject SD Card**:
+   - Safely eject the SD card from your computer
+   - Insert it into your Raspberry Pi Zero 2 W
 
 ### Step 3: First Boot and Setup (DietPi)
 
-```bash
-# SSH into your Pi (default credentials)
-ssh dietpi@192.168.1.XXX
-# Default password: dietpi
+1. **Power On and Wait**:
+   ```bash
+   # Insert SD card into Pi Zero 2 W and power on
+   # First boot takes 5-10 minutes for automated setup
+   # The Pi will automatically:
+   # - Resize the filesystem
+   # - Connect to WiFi
+   # - Update the system  
+   # - Install Node.js and Git
+   # - Configure SSH access
+   ```
 
-# DietPi will auto-update on first boot, then run:
-dietpi-software
+2. **Find Your Pi's IP Address**:
+   ```bash
+   # On your computer, scan the network:
+   nmap -sn 192.168.1.0/24 | grep -A2 "nowplaying-pi\|Raspberry"
+   
+   # Or check your router's admin panel for "nowplaying-pi"
+   ```
 
-# In the DietPi-Software menu:
-# Navigate to "Browse Software" and install:
-# [9] Node.js - for running the app
-# [17] Git - for downloading the code  
-# [113] Chromium - for kiosk display
-# [160] Unclutter - to hide mouse cursor
+3. **SSH Into Your Pi**:
+   ```bash
+   # Connect via SSH (use the password you set in dietpi.txt)
+   ssh root@192.168.1.XXX  # Replace XXX with your Pi's IP
+   
+   # DietPi will complete any remaining setup automatically
+   # You may be prompted to change passwords (recommended)
+   ```
 
-# After installation, optimize for performance:
-dietpi-config
-# → Performance Options → CPU Governor → "performance"  
-# → Performance Options → Memory Split → 128MB
-# → AutoStart Options → Custom (we'll configure this later)
-```
+4. **Install Additional Software**:
+   ```bash
+   # Run DietPi software installer
+   dietpi-software
+   
+   # Select and install:
+   # [113] Chromium Browser - for kiosk display
+   # [160] Unclutter - to hide mouse cursor
+   
+   # Or install via command line:
+   dietpi-software install 113 160
+   ```
+
+5. **Configure Performance Settings**:
+   ```bash
+   # Open DietPi configuration
+   dietpi-config
+   
+   # Navigate to:
+   # → Performance Options → CPU Governor → "performance"  
+   # → Performance Options → Memory Split → 128MB
+   # → AutoStart Options → 11: LightDM (for GUI/kiosk mode)
+   ```
 
 ### Step 4: Performance Optimizations
 
@@ -126,7 +199,7 @@ sudo reboot
 ### Step 5: Install the Now Playing App
 
 ```bash
-# Clone the repository
+# Clone the repository (Node.js and Git already installed via automation)
 git clone https://github.com/zionun/now-playing.git
 cd now-playing
 
@@ -135,33 +208,29 @@ chmod +x install.sh
 ./install.sh
 
 # The installer will:
-# - Install all dependencies
-# - Build the React frontend  
-# - Configure PM2 for auto-start
+# - Install all dependencies (client and server)
+# - Build the React frontend optimized for production
+# - Configure PM2 for process management and auto-start
 ```
 
 ### Step 6: Configure Kiosk Mode Auto-start
 
 ```bash
-# Configure DietPi to auto-start our kiosk
-sudo dietpi-config
-# → AutoStart Options → 11: LightDM (for GUI)
-
-# Create kiosk startup script
+# Create kiosk startup script for DietPi
 sudo mkdir -p /home/dietpi/.config/openbox
 sudo tee /home/dietpi/.config/openbox/autostart << 'EOF'
 # Hide cursor after 0.1 seconds of inactivity
 unclutter -idle 0.1 &
 
-# Start the Now Playing server
+# Ensure Now Playing server is running
 cd /home/dietpi/now-playing
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.js 2>/dev/null || true
 pm2 save
 
 # Wait for server to start
 sleep 15
 
-# Launch browser in kiosk mode (720x720 optimized)
+# Launch browser in kiosk mode (optimized for 720x720 HyperPixel)
 chromium-browser \
   --kiosk \
   --no-sandbox \
@@ -171,16 +240,27 @@ chromium-browser \
   --disable-features=VizDisplayCompositor \
   --window-size=720,720 \
   --window-position=0,0 \
+  --disable-dev-shm-usage \
+  --no-first-run \
   http://localhost:3001
 EOF
 
 # Set correct permissions
-sudo chown -R dietpi:dietpi /home/dietpi/.config
+sudo chown -R root:root /home/dietpi/.config
 sudo chmod +x /home/dietpi/.config/openbox/autostart
 
-# Reboot to test kiosk mode
+# DietPi should already be configured for LightDM autostart
+# Verify with: dietpi-config → AutoStart Options → should be "11: LightDM"
+
+# Test the kiosk setup
 sudo reboot
 ```
+
+**Important Notes for Headless Setup**:
+- The automated installation eliminates the need for manual SSH setup
+- WiFi credentials are configured before first boot
+- All required software is installed automatically
+- The system will be ready to use after the first boot completes
 
 ### Alternative: Raspberry Pi OS Setup
 
@@ -273,37 +353,73 @@ sudo systemctl disable dphys-swapfile
 
 ### DietPi Specific Issues
 
-**DietPi-Software won't start:**
+**DietPi won't boot or connect to WiFi:**
 ```bash
-# Update DietPi system
-sudo dietpi-update
+# Check your configuration files on the SD card:
+# - Verify WiFi credentials in dietpi-wifi.txt
+# - Check country code matches your location
+# - Ensure quotes are properly formatted: aWIFI_SSID[0]='NetworkName'
 
-# If still issues, manually install packages
-sudo apt update
-sudo apt install -y nodejs npm git chromium-browser
+# Common country codes:
+# US, GB, DE, IT, FR, ES, AU, CA, JP
+
+# Re-edit files if needed before first boot
+```
+
+**Automated installation failed:**
+```bash
+# Check installation log
+sudo cat /var/tmp/dietpi/logs/dietpi-firstrun-setup.log
+
+# If Node.js installation failed, install manually:
+sudo dietpi-software install 9 17  # Node.js and Git
+
+# Verify installation
+node --version  # Should show v18+ or v20+
+npm --version   # Should show 8+ or 9+
+```
+
+**Headless setup not working:**
+```bash
+# Verify SSH is enabled - edit dietpi.txt before first boot:
+AUTO_SETUP_SSH_SERVER_INDEX=-2
+
+# Find Pi on network manually:
+# Check router admin panel for device named "nowplaying-pi" 
+# Or try common IPs: ssh root@192.168.1.100, ssh root@192.168.1.101, etc.
+
+# If still can't connect, use monitor and keyboard for initial setup
+```
+
+**WiFi connection issues:**
+```bash
+# Check WiFi status
+sudo iwconfig
+
+# Manual WiFi configuration if needed
+sudo dietpi-config
+# → Network Options: Adapters → WiFi
+
+# Verify dietpi-wifi.txt format:
+# NO spaces around = in aWIFI_SSID[0]='Name'
+# Use single quotes around network name and password
+# Special characters in password may need escaping
 ```
 
 **Kiosk mode not starting:**
 ```bash
-# Check DietPi autostart configuration
+# Check if LightDM is configured
 sudo dietpi-config
-# Ensure AutoStart is set to "LightDM"
+# Ensure AutoStart is set to "11: LightDM"
 
-# Check openbox autostart script
-cat /home/dietpi/.config/openbox/autostart
+# Test openbox autostart script manually
+DISPLAY=:0 /home/dietpi/.config/openbox/autostart
 
-# Test manually
-DISPLAY=:0 chromium-browser --kiosk http://localhost:3001
-```
+# Check if Chromium is installed
+which chromium-browser  # Should show path
 
-**Performance not as expected:**
-```bash
-# Verify DietPi optimizations are active
-sudo dietpi-config
-# Check all Performance Options are set correctly
-
-# Monitor system performance
-sudo dietpi-cloudshell    # Built-in system monitor
+# Install if missing
+sudo dietpi-software install 113
 ```
 
 ### Common Issues

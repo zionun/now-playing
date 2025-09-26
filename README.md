@@ -480,13 +480,17 @@ pm2 list
 pm2 logs
 
 # Restart app
-pm2 restart now-playing-server
+pm2 restart now-playing
 
-# Update app
-cd /home/pi/now-playing
-git pull
-npm install
-pm2 restart now-playing-server
+# Update app (automated)
+cd /opt/now-playing
+sudo ./update.sh
+
+# Update app (manual)
+cd /opt/now-playing
+git pull origin main
+npm install && cd client && npm install && cd .. && npm run build
+pm2 restart now-playing
 ```
 
 ## 🛒 **Recommended Hardware**
@@ -665,9 +669,27 @@ pm2 restart all
 
 ### Update the Application
 
+**Automatic Update (Recommended):**
+```bash
+# Navigate to installation directory
+cd /opt/now-playing
+
+# Run the update script
+sudo ./update.sh
+```
+
+The update script will:
+- Backup your current configuration
+- Pull the latest version from GitHub
+- Update all dependencies (client, server, root)
+- Rebuild the production frontend
+- Restore your configuration
+- Restart PM2 services
+
+**Manual Update (Advanced):**
 ```bash
 # Pull latest changes
-cd /home/pi/now-playing
+cd /opt/now-playing
 git pull origin main
 
 # Install any new dependencies
@@ -678,7 +700,7 @@ cd client && npm install && cd ..
 npm run build
 
 # Restart services
-pm2 restart all
+pm2 restart now-playing
 ```
 
 ## �🔧 Development
@@ -700,6 +722,7 @@ now-playing/
 │   │   └── config/        # Configuration files
 │   └── package.json
 ├── install.sh             # Installation script
+├── update.sh              # Update script  
 ├── kiosk.sh              # Kiosk mode script
 └── ecosystem.config.cjs    # PM2 configuration
 ```

@@ -187,37 +187,60 @@ export class PlexService {
   async mediaControl(action) {
     const config = this.configService.getPlexConfig()
     
+    console.log('Media control request:', action) // Debug
+    console.log('Current state track:', this.currentState.track) // Debug
+    
     if (!this.currentState.track?.sessionId) {
+      console.error('No active session available') // Debug
       throw new Error('No active session')
     }
 
+    if (!this.currentState.track?.playerId) {
+      console.error('No player ID available') // Debug
+      throw new Error('No player ID available')
+    }
+
     const sessionId = this.currentState.track.sessionId
+    const playerId = this.currentState.track.playerId
     const baseUrl = `http://${config.url}:${config.port}`
     let endpoint = ''
 
+    // Uso gli endpoint corretti di Plex per i controlli multimediali
     switch (action.type) {
       case 'play':
-        endpoint = `/status/sessions/${sessionId}/play`
+        endpoint = `/player/playback/play`
         break
       case 'pause':
-        endpoint = `/status/sessions/${sessionId}/pause`
+        endpoint = `/player/playback/pause`
         break
       case 'previous':
-        endpoint = `/status/sessions/${sessionId}/skipPrevious`
+        endpoint = `/player/playback/skipPrevious`
         break
       case 'next':
-        endpoint = `/status/sessions/${sessionId}/skipNext`
+        endpoint = `/player/playback/skipNext`
         break
       default:
         throw new Error(`Unknown action: ${action.type}`)
     }
 
-    await axios.get(`${baseUrl}${endpoint}`, {
-      headers: {
-        'X-Plex-Token': config.token
-      },
-      timeout: 5000
-    })
+    const fullUrl = `${baseUrl}${endpoint}`
+    
+    try {
+      await axios.get(fullUrl, {
+        headers: {
+          'X-Plex-Token': config.token
+        },
+        params: {
+          'X-Plex-Client-Identifier': 'now-playing-app',
+          'X-Plex-Target-Client-Identifier': playerId
+        },
+        timeout: 5000
+      })
+      console.log('Media control successful')
+    } catch (error) {
+      console.error('Media control error:', error.response?.status, error.response?.statusText)
+      throw error
+    }
 
     // Immediately check for updates
     setTimeout(() => this.checkNowPlaying(), 500)

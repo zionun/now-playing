@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './TouchOverlay.css'
 
-const TouchOverlay = ({ show, onInteraction, onClose, track, activeUsers, selectedUser }) => {
+const TouchOverlay = ({ show, onInteraction, onClose, track, nowPlaying, activeUsers, selectedUser }) => {
   const { sendMediaControl, switchUser } = useWebSocket()
   const [isAnimating, setIsAnimating] = useState(false)
+
+  // VERSIONE CHECK - se vedi questo, hai l'ultima versione!
+  console.log('🎯 TouchOverlay LOADED - VERSION 2024-12-29-20:30 🎯') // Version check
 
   const handleControlClick = (action, event) => {
     event.stopPropagation()
@@ -70,7 +73,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, activeUsers, select
         )}
 
         {/* Media controls */}
-        <div className="media-controls">
+        <div className="media-controls" onClick={(e) => handleControlClick('previous', e)}>
           <button 
             className="control-button"
             onClick={(e) => handleControlClick('previous', e)}
@@ -83,11 +86,17 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, activeUsers, select
 
           <button 
             className="control-button play-pause"
-            onClick={(e) => handleControlClick('pause', e)}
-            aria-label="Pause"
+            onClick={(e) => handleControlClick(nowPlaying?.isPlaying ? 'pause' : 'play', e)}
+            aria-label={nowPlaying?.isPlaying ? 'Pause' : 'Play'}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              {nowPlaying?.isPlaying ? (
+                // Icona pause
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              ) : (
+                // Icona play
+                <path d="M8 5v14l11-7z"/>
+              )}
             </svg>
           </button>
 

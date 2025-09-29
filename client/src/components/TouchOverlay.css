@@ -182,8 +182,8 @@
 }
 
 .control-button {
-  width: 60px;
-  height: 60px;
+  width: 80px; /* Aumentato da 60px */
+  height: 80px; /* Aumentato da 60px */
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
   border: none;
@@ -238,8 +238,8 @@
 }
 
 .control-button.play-pause {
-  width: 80px;
-  height: 80px;
+  width: 100px; /* Aumentato da 80px */
+  height: 100px; /* Aumentato da 80px */
   background: var(--accent-color);
   /* Stato iniziale semplificato */
   opacity: 0;
@@ -268,13 +268,13 @@
 }
 
 .control-button svg {
-  width: 24px;
-  height: 24px;
+  width: 28px; /* Aumentato da 24px */
+  height: 28px; /* Aumentato da 24px */
 }
 
 .control-button.play-pause svg {
-  width: 32px;
-  height: 32px;
+  width: 36px; /* Aumentato da 32px */
+  height: 36px; /* Aumentato da 32px */
 }
 
 /* Overlay Track Info con animazione */

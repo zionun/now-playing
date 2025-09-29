@@ -160,6 +160,7 @@ const NowPlayingDisplay = () => {
         onInteraction={handleOverlayInteraction}
         onClose={handleCloseOverlay}
         track={track}
+        nowPlaying={nowPlaying}
         activeUsers={nowPlaying.activeUsers}
         selectedUser={nowPlaying.selectedUser}
       />

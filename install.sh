@@ -72,11 +72,6 @@ pm2 start ecosystem.config.cjs
 pm2 startup systemd -u root --hp /root
 pm2 save
 
-# Setup kiosk mode
-echo "🖥️  Setting up kiosk mode..."
-chmod +x kiosk.sh
-cp kiosk.sh /opt/kiosk.sh
-
 echo "✅ Installation completed!"
 echo ""
 

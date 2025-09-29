@@ -3,9 +3,12 @@
 # Set display
 export DISPLAY=:0
 
+until xset q &>/dev/null; do
+    sleep 0.2
+done
+
 # Disable screen blanking / DPMS
 xset s off
-xset -dpms
 xset s noblank
 
 # Launch Chromium in kiosk mode
@@ -24,6 +27,7 @@ chromium \
   --disable-background-networking \
   --disable-default-apps \
   --disable-translate \
+  --lang=en \
   --no-memcheck \
   --no-first-run \
   --no-default-browser-check \

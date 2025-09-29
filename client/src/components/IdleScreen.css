@@ -80,6 +80,7 @@
 /* Stats row - scrobbles and last track on same line */
 .stats-row {
   display: flex;
+  flex-direction: row !important;
   align-items: stretch;
   gap: 1rem;
   width: 100%;

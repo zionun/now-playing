@@ -17,13 +17,14 @@ chromium \
   --disable-renderer-backgrounding \
   --disable-backgrounding-occluded-windows \
   --disable-features=TranslateUI,VizDisplayCompositor \
-  --disable-translate \
-  --enable-features=VaapiVideoDecoder \
+    --enable-features=VaapiVideoDecoder \
   --disable-extensions \
   --disable-plugins \
   --disable-sync \
   --disable-background-networking \
   --disable-default-apps \
+  --disable-translate \
+  --no-memcheck \
   --no-first-run \
   --no-default-browser-check \
   --disable-gpu-process-crash-limit \

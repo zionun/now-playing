@@ -140,21 +140,24 @@ A modern, touch-friendly web application that displays currently playing music f
 
 4. **Install Additional Software**:
    ```bash
-   # Install LightDM
-   sudo apt install -y lightdm openbox
+   # Install Chromium and X server components
+   sudo dietpi-software install 113  # Chromium
+   sudo apt install -y xserver-xorg xinit  # X server components for custom script
+   
+   # Verify installation
+   chromium --version  # Should show version info
    ```
 
-5. **Configure Performance Settings and Autostart options**:
+5. **Configure Performance Settings**:
    ```bash
    # Open DietPi configuration
    dietpi-config
    
    # Navigate to:
    # → Performance Options → CPU Governor → "performance"  
-   # → AutoStart Options → 11: Chromium (dedicated use without desktop)
 
    # Note: GPU memory split is configured in Step 5 via /boot/config.txt
-   # Note: AutoStart will be configured after Chromium installation
+   # Note: Custom autostart will be configured in Step 6
    ```
 
 ### Step 4: Performance Optimizations
@@ -177,8 +180,8 @@ dtparam=i2c=off
 dtoverlay=disable-bt
 dtoverlay=disable-wifi-poweroff
 
-# HyperPixel 4.0 Square (uncomment if using)
-# dtoverlay=vc4-kms-dpi-hyperpixel4sq
+# HyperPixel 4.0 Square (comment if not using)
+dtoverlay=vc4-kms-dpi-hyperpixel4sq
 " | sudo tee -a /boot/config.txt
 
 # Optimize filesystem
@@ -212,15 +215,17 @@ sudo ./install.sh
 ### Step 6: Configure Kiosk Mode Auto-start
 
 ```bash
-# Configure LightDM to hide cursor permanently (better than unclutter)
-sudo tee -a /etc/lightdm/lightdm.conf << 'EOF'
+# Configure DietPi autostart for custom kiosk script
+sudo dietpi-autostart
 
-[Seat:*]
-xserver-command=X -nocursor
-EOF
+# In the menu, select:
+# → 17: Custom script (foreground, with autologin)
+# This will create /var/lib/dietpi/dietpi-autostart/custom.sh
+# Select the root user.
 
-# DietPi should already be configured for Chromium autostart
-# Verify with: dietpi-config → AutoStart Options → should be "11: Chromium"
+# Copy the kiosk script content to the custom autostart
+sudo cp /opt/now-playing/start-kiosk.sh /var/lib/dietpi/dietpi-autostart/custom.sh
+sudo chmod +x /var/lib/dietpi/dietpi-autostart/custom.sh
 
 # Test the kiosk setup
 sudo reboot
@@ -381,15 +386,16 @@ sudo dietpi-config
 
 **Kiosk mode not starting:**
 ```bash
-# Check if Chromium autostart is configured
-sudo dietpi-config
-# Ensure AutoStart is set to "11: Chromium (dedicated use without desktop)"
+# Check if custom autostart is configured
+sudo dietpi-autostart
+# Ensure AutoStart is set to "17: Custom script (foreground, with autologin)"
 
-# Test openbox autostart script manually
-DISPLAY=:0 /home/dietpi/.config/openbox/autostart
+# Check if custom script exists and is executable
+ls -la /var/lib/dietpi/dietpi-autostart/custom.sh
+cat /var/lib/dietpi/dietpi-autostart/custom.sh
 
 # Check if Chromium is installed
-which chromium-browser  # Should show path
+which chromium  # Should show path
 
 # Install if missing
 sudo dietpi-software install 113

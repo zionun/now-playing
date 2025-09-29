@@ -148,8 +148,8 @@ const IdleScreen = ({ onInteraction }) => {
             {/* Last track */}
             {lastfmData.lastTrack && (
               <div className="last-track">
-                <h3>Ultima traccia</h3>
                 <div className="track-card">
+                  <h3 className="track-label">Ultima traccia</h3>
                   <img 
                     src={getTrackImage(lastfmData.lastTrack)}
                     alt="Artwork"

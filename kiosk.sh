@@ -17,7 +17,7 @@ chromium \
   --disable-renderer-backgrounding \
   --disable-backgrounding-occluded-windows \
   --disable-features=TranslateUI,VizDisplayCompositor \
-    --enable-features=VaapiVideoDecoder \
+  --enable-features=VaapiVideoDecoder \
   --disable-extensions \
   --disable-plugins \
   --disable-sync \

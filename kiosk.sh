@@ -29,4 +29,4 @@ chromium \
   --no-default-browser-check \
   --disable-gpu-process-crash-limit \
   --kiosk \
-  --app=http://localhost:3001
+  http://localhost:3001

@@ -49,8 +49,8 @@
 }
 
 .artwork {
-  width: min(60vw, 60vh);
-  height: min(60vw, 60vh);
+  width: min(70vw, 70vh);
+  height: min(70vw, 70vh);
   object-fit: cover;
   border-radius: var(--border-radius);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -134,13 +134,13 @@
 /* Responsive adjustments for square displays */
 @media (aspect-ratio: 1/1) {
   .artwork {
-    width: min(50vw, 50vh);
-    height: min(50vw, 50vh);
+    width: min(60vw, 60vh);
+    height: min(60vw, 60vh);
   }
   
   .main-content {
-    max-width: 85vw;
-    max-height: 85vh;
+    max-width: 90vw;
+    max-height: 90vh;
   }
   
   .track-title {
@@ -159,8 +159,8 @@
 /* Very small screens (like 720x720) */
 @media (max-width: 800px) and (max-height: 800px) {
   .artwork {
-    width: min(45vw, 45vh);
-    height: min(45vw, 45vh);
+    width: min(55vw, 55vh);
+    height: min(55vw, 55vh);
   }
   
   .track-info {

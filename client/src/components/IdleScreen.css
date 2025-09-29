@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 2rem;
   box-sizing: border-box;
   cursor: pointer;
@@ -80,11 +80,11 @@
 /* Stats row - scrobbles and last track on same line */
 .stats-row {
   display: flex;
-  align-items: center;
-  gap: 3rem;
+  align-items: stretch;
+  gap: 1rem;
   width: 100%;
-  max-width: 900px;
-  justify-content: space-between;
+  max-width: 800px;
+  margin-bottom: 2rem;
 }
 
 /* Stats header - old, now replaced by stats-row */
@@ -95,8 +95,16 @@
 }
 
 .scrobbles-stat {
+  /* Quadrato fisso a sinistra - dimensione calcolata per allinearsi alla griglia 4x3 */
+  width: calc((800px - 3rem) / 4);
+  min-width: calc((800px - 3rem) / 4);
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 1.5rem 2rem;
+  padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -120,14 +128,17 @@
 /* Last track - now in horizontal layout */
 .last-track {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-align: left;
-  max-width: 500px;
+  min-width: 0;
 }
 
 .last-track h3 {
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: var(--text-primary);
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   font-weight: 500;
 }
 
@@ -139,6 +150,8 @@
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .track-artwork {
@@ -261,8 +274,14 @@
   /* Stack stats row on mobile */
   .stats-row {
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
     align-items: center;
+    max-width: 100%;
+  }
+  
+  .scrobbles-stat {
+    width: 200px;
+    min-width: 200px;
   }
   
   .last-track {
@@ -307,8 +326,27 @@
   }
   
   .stats-row {
-    max-width: 85vw;
-    gap: 2rem;
+    max-width: 600px;
+    gap: 0.8rem;
+  }
+  
+  .scrobbles-stat {
+    width: calc((600px - 2.4rem) / 4);
+    min-width: calc((600px - 2.4rem) / 4);
+    padding: 0.8rem;
+  }
+  
+  .stat-number {
+    font-size: 1.8rem;
+  }
+  
+  .stat-label {
+    font-size: 0.7rem;
+  }
+  
+  .last-track h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
   }
   
   .albums-grid {

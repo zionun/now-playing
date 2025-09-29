@@ -11,7 +11,7 @@ html,
 body {
   height: 100%;
   width: 100%;
-  /* overflow: hidden; */ /* Don't force hidden globally */
+  overflow: hidden; /* Kiosk mode - prevent scrolling */
 }
 
 body {

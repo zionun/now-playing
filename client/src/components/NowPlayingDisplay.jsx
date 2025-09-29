@@ -22,6 +22,9 @@ const NowPlayingDisplay = () => {
   }, [])
 
   const handleInteraction = (event) => {
+    // Previeni multiple chiamate da touch + click
+    event.preventDefault()
+    
     // Previeni l'interazione se l'overlay è già visibile
     if (showOverlay) {
       return
@@ -34,10 +37,10 @@ const NowPlayingDisplay = () => {
       clearTimeout(overlayTimeout)
     }
     
-    // Set new timeout to hide overlay
+    // Set new timeout to hide overlay - più lungo per dare tempo alle animazioni
     const timeout = setTimeout(() => {
       setShowOverlay(false)
-    }, 4000)
+    }, 6000) // Aumentato da 4 a 6 secondi
     
     setOverlayTimeout(timeout)
   }
@@ -50,7 +53,7 @@ const NowPlayingDisplay = () => {
     
     const timeout = setTimeout(() => {
       setShowOverlay(false)
-    }, 4000)
+    }, 6000) // Aumentato anche qui
     
     setOverlayTimeout(timeout)
   }
@@ -106,8 +109,8 @@ const NowPlayingDisplay = () => {
   return (
     <div 
       className="now-playing-container"
+      onTouchEnd={handleInteraction}
       onClick={handleInteraction}
-      onTouchStart={handleInteraction}
     >
       {/* Background artwork with blur effect */}
       <div 

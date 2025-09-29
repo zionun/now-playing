@@ -11,7 +11,7 @@
   justify-content: center;
   z-index: 1000;
   cursor: pointer;
-  animation: fadeInOverlay var(--transition-medium) ease-out;
+  animation: fadeInOverlay 0.2s ease-out; /* Animazione ultra veloce */
 }
 
 /* Effetto pulse leggero per il background */
@@ -38,22 +38,13 @@
   }
 }
 
-/* Animazioni più elaborate per overlay */
+/* Animazione overlay semplificata per Raspberry Pi */
 @keyframes fadeInOverlay {
   0% {
     opacity: 0;
-    backdrop-filter: blur(0px);
-    transform: scale(1.1);
-  }
-  50% {
-    opacity: 0.7;
-    backdrop-filter: blur(5px);
-    transform: scale(0.98);
   }
   100% {
     opacity: 1;
-    backdrop-filter: blur(10px);
-    transform: scale(1);
   }
 }
 
@@ -201,57 +192,48 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all 0.2s ease; /* Transizione più veloce */
   backdrop-filter: blur(10px);
-  /* Inizia invisibile senza rotazione */
+  /* Stato iniziale semplificato */
   opacity: 0;
-  transform: scale(0.3) translateY(30px);
-  filter: blur(3px);
-  /* Animazione più veloce e pratica */
-  animation: buttonFadeIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transform: scale(0.8);
+  /* Animazione veloce e leggera */
+  animation: buttonFadeIn 0.3s ease-out forwards;
 }
 
-/* Ritardi più veloci per migliore usabilità */
+/* Ritardi minimi per Raspberry Pi */
 .media-controls .control-button:nth-child(1) {
-  animation-delay: 0.1s;
+  animation-delay: 0.05s;
 }
 
 .media-controls .control-button:nth-child(2) {
-  animation-delay: 0.2s; /* Pulsante centrale quasi subito */
+  animation-delay: 0.1s;
 }
 
 .media-controls .control-button:nth-child(3) {
-  animation-delay: 0.3s; /* Ultimo pulsante veloce */
+  animation-delay: 0.15s;
 }
 
-/* Animazione pulita senza rotazione per i pulsanti laterali */
+/* Animazione super semplice per Raspberry Pi - solo opacity e transform essenziali */
 @keyframes buttonFadeIn {
   0% {
     opacity: 0;
-    transform: scale(0.3) translateY(30px);
-    filter: blur(3px);
-  }
-  70% {
-    opacity: 1;
-    transform: scale(1.1) translateY(-5px);
-    filter: blur(0px);
+    transform: scale(0.8);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
-    filter: blur(0px);
+    transform: scale(1);
   }
 }
 
 .control-button:hover {
   background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.3) translateY(-8px);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.3);
-  filter: brightness(1.2) drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+  transform: scale(1.1);
+  /* Hover semplificato per Raspberry Pi - meno effetti GPU-intensive */
 }
 
 .control-button:active {
-  transform: scale(0.9);
+  transform: scale(0.95);
   transition: transform 0.1s ease;
 }
 
@@ -259,39 +241,30 @@
   width: 80px;
   height: 80px;
   background: var(--accent-color);
-  /* Inizia invisibile senza rotazione */
+  /* Stato iniziale semplificato */
   opacity: 0;
-  transform: scale(0.3) translateY(40px);
-  filter: blur(5px);
-  /* Animazione più veloce per usabilità */
-  animation: playButtonFadeIn 0.7s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-  animation-delay: 0.2s; /* Delay ridotto */
+  transform: scale(0.7);
+  /* Animazione veloce e ottimizzata per Raspberry Pi */
+  animation: playButtonFadeIn 0.4s ease-out forwards;
+  animation-delay: 0.1s; /* Delay minimo */
 }
 
-/* Animazione pulita senza rotazione per il pulsante play */
+/* Animazione semplificata per il pulsante play - no blur, no effects pesanti */
 @keyframes playButtonFadeIn {
   0% {
     opacity: 0;
-    transform: scale(0.3) translateY(40px);
-    filter: blur(5px);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.2) translateY(-8px);
-    filter: blur(0px);
+    transform: scale(0.7);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
-    filter: blur(0px);
+    transform: scale(1);
   }
 }
 
 .control-button.play-pause:hover {
   background: #f39c12;
-  transform: scale(1.4) translateY(-10px);
-  box-shadow: 0 20px 50px rgba(229, 160, 13, 0.6), 0 0 30px rgba(243, 156, 18, 0.8);
-  filter: brightness(1.3) drop-shadow(0 0 15px rgba(243, 156, 18, 0.9));
+  transform: scale(1.15);
+  /* Hover semplificato anche per il play button */
 }
 
 .control-button svg {

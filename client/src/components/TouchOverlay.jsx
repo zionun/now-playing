@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './TouchOverlay.css'
 
-const TouchOverlay = ({ show, onInteraction, track, activeUsers, selectedUser }) => {
+const TouchOverlay = ({ show, onInteraction, onClose, track, activeUsers, selectedUser }) => {
   const { sendMediaControl, switchUser } = useWebSocket()
+  const [isAnimating, setIsAnimating] = useState(false)
 
   const handleControlClick = (action, event) => {
     event.stopPropagation()
@@ -17,13 +18,36 @@ const TouchOverlay = ({ show, onInteraction, track, activeUsers, selectedUser })
     switchUser(userId)
   }
 
-  if (!show) return null
+  // Gestisci clic sull'overlay di sfondo per chiudere
+  const handleOverlayClick = (event) => {
+    // Solo se il clic è direttamente sull'overlay (non sui suoi figli)
+    if (event.target === event.currentTarget) {
+      event.stopPropagation() // Ferma la propagazione dell'evento
+      onClose() // Usa la funzione di chiusura specifica
+    }
+  }
+
+  // Previeni la propagazione del clic sui controlli
+  const handleContentClick = (event) => {
+    event.stopPropagation()
+  }
+
+  if (!show) {
+    return null
+  }
 
   const showUserSwitch = activeUsers.length > 1
 
   return (
-    <div className="touch-overlay">
-      <div className="overlay-content">
+    <div 
+      className="touch-overlay"
+      onClick={handleOverlayClick}
+      onTouchStart={(e) => e.stopPropagation()} // Previeni la propagazione anche del touch
+    >
+      <div 
+        className="overlay-content"
+        onClick={handleContentClick}
+      >
         {/* User switcher (if multiple users) */}
         {showUserSwitch && (
           <div className="user-switcher">

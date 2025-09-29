@@ -138,39 +138,35 @@ const IdleScreen = ({ onInteraction }) => {
         </div>
       ) : lastfmData ? (
         <div className="idle-content">
-          {/* Header row with scrobbles and last track */}
-          <div className="stats-row">
-            <div className="scrobbles-stat">
-              <div className="stat-number">{formatScrobbles(lastfmData.scrobbles)}</div>
-              <div className="stat-label">Scrobbles</div>
-            </div>
-            
-            {/* Last track */}
-            {lastfmData.lastTrack && (
-              <div className="last-track">
-                <div className="track-card">
-                  <h3 className="track-label">Ultima traccia</h3>
-                  <img 
-                    src={getTrackImage(lastfmData.lastTrack)}
-                    alt="Artwork"
-                    className="track-artwork"
-                    onError={(e) => {
-                      e.target.src = '/placeholder-artwork.jpg'
-                    }}
-                  />
-                  <div className="track-details">
-                    <div className="track-title">{lastfmData.lastTrack.name}</div>
-                    <div className="track-artist">{lastfmData.lastTrack.artist?.['#text'] || lastfmData.lastTrack.artist}</div>
-                  </div>
-                </div>
-              </div>
-            )}
+          {/* Scrobbles stat - Grid position 1,1 */}
+          <div className="scrobbles-stat">
+            <div className="stat-number">{formatScrobbles(lastfmData.scrobbles)}</div>
+            <div className="stat-label">Scrobbles</div>
           </div>
+          
+          {/* Last track - Grid position 2-4,1 */}
+          {lastfmData.lastTrack && (
+            <div className="last-track">
+              <img 
+                src={getTrackImage(lastfmData.lastTrack)}
+                alt="Artwork"
+                className="track-artwork"
+                onError={(e) => {
+                  e.target.src = '/placeholder-artwork.jpg'
+                }}
+              />
+              <div className="track-info-container">
+                <div className="track-label">Ultima traccia riprodotta</div>
+                <div className="track-title">{lastfmData.lastTrack.name}</div>
+                <div className="track-album">{lastfmData.lastTrack.album?.['#text'] || 'Album sconosciuto'}</div>
+                <div className="track-artist">{lastfmData.lastTrack.artist?.['#text'] || lastfmData.lastTrack.artist}</div>
+              </div>
+            </div>
+          )}
 
-          {/* Top albums grid - 4 columns x 3 rows */}
+          {/* Top albums - Grid positions 1-4, 2-4 */}
           {lastfmData.topAlbums && lastfmData.topAlbums.length > 0 && (
             <div className="top-albums">
-              <h3>Album recenti</h3>
               <div className="albums-grid">
                 {getUniqueAlbums(lastfmData.topAlbums).map((album, index) => (
                   <div key={`${album.artist?.name || album.artist}-${album.name}-${index}`} className="album-item">

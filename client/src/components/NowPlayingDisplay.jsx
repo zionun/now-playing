@@ -21,7 +21,12 @@ const NowPlayingDisplay = () => {
     }
   }, [])
 
-  const handleInteraction = () => {
+  const handleInteraction = (event) => {
+    // Previeni l'interazione se l'overlay è già visibile
+    if (showOverlay) {
+      return
+    }
+    
     setShowOverlay(true)
     
     // Clear existing timeout
@@ -48,6 +53,17 @@ const NowPlayingDisplay = () => {
     }, 4000)
     
     setOverlayTimeout(timeout)
+  }
+
+  const handleCloseOverlay = () => {
+    // Chiudi immediatamente l'overlay quando si clicca fuori
+    setShowOverlay(false)
+    
+    // Pulisci il timeout esistente
+    if (overlayTimeout) {
+      clearTimeout(overlayTimeout)
+      setOverlayTimeout(null)
+    }
   }
 
   // Clean up timeout on unmount
@@ -139,6 +155,7 @@ const NowPlayingDisplay = () => {
       <TouchOverlay 
         show={showOverlay}
         onInteraction={handleOverlayInteraction}
+        onClose={handleCloseOverlay}
         track={track}
         activeUsers={nowPlaying.activeUsers}
         selectedUser={nowPlaying.selectedUser}

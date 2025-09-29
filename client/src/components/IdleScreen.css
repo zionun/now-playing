@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 2rem;
+  padding: 4rem 2rem;
   box-sizing: border-box;
   cursor: pointer;
   transition: opacity var(--transition-fast);
@@ -67,39 +67,21 @@
   font-size: 0.9rem;
 }
 
-/* Main content */
+/* Main content - 4x4 Grid Layout */
 .idle-content {
-  width: 100%;
-  max-width: 1200px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-  align-items: center;
-}
-
-/* Stats row - scrobbles and last track on same line */
-.stats-row {
-  display: flex;
-  flex-direction: row !important;
-  align-items: stretch;
+  width: calc(100vw - 2rem);
+  height: calc(100vh - 4rem);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
   gap: 1rem;
-  width: 100%;
-  max-width: 800px;
-  margin-bottom: 2rem;
+  padding: 0;
 }
 
-/* Stats header - old, now replaced by stats-row */
-.stats-header {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
+/* Scrobbles stat - First cell of grid */
 .scrobbles-stat {
-  /* Quadrato fisso a sinistra - dimensione calcolata per allinearsi alla griglia 4x3 */
-  width: calc((800px - 3rem) / 4);
-  min-width: calc((800px - 3rem) / 4);
-  aspect-ratio: 1;
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -109,6 +91,24 @@
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--border-radius);
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Last track - Spans 3 columns in first row */
+.last-track {
+  grid-column: 2 / 5;
+  grid-row: 1;
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Stats row container - not needed anymore */
+.stats-row {
+  display: contents;
 }
 
 .stat-number {
@@ -127,108 +127,94 @@
 }
 
 /* Last track - now in horizontal layout */
-.last-track {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: left;
-  min-width: 0;
-}
-
-.last-track h3 {
-  font-size: 1rem;
-  color: var(--text-primary);
-  margin-bottom: 0.75rem;
-  font-weight: 500;
-}
-
-.track-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--border-radius);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  height: 100%;
-  box-sizing: border-box;
-  position: relative;
-}
-
-.track-label {
-  position: absolute;
-  top: 0.5rem;
-  left: 1rem;
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-  background: rgba(0,0,0,0.4);
-  padding: 0.2rem 0.7rem;
-  border-radius: 8px;
-  font-weight: 500;
-  z-index: 2;
-}
-
 .track-artwork {
-  width: 60px;
-  height: 60px;
+  width: calc((100vh - 4rem) / 4 - 2rem);
+  height: calc((100vh - 4rem) / 4 - 2rem);
   border-radius: 8px;
   object-fit: cover;
   flex-shrink: 0;
 }
 
-.track-details {
+.track-info-container {
   flex: 1;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
   min-width: 0;
 }
 
-.track-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.track-label {
+  font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  margin-bottom: 0.2rem;
 }
 
-.track-artist {
-  font-size: 0.9rem;
+.track-title {
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.1rem;
+  overflow: hidden;
+}
+
+.track-album {
+  font-size: clamp(0.8rem, 1.8vw, 1rem);
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-bottom: 0.1rem;
 }
 
-/* Top albums */
+.track-artist {
+  font-size: clamp(0.7rem, 1.6vw, 0.9rem);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Top albums - Grid items spanning rows 2-4 */
 .top-albums {
-  width: 100%;
-  text-align: center;
+  display: contents;
 }
 
 .top-albums h3 {
-  font-size: 1.2rem;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-  font-weight: 500;
+  display: none; /* Hide heading in grid layout */
 }
 
 .albums-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  grid-auto-rows: 1fr;
-  gap: 0.8rem;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  aspect-ratio: 4/3;
+  display: contents;
 }
 
 .album-item {
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  transition: transform var(--transition-fast);
   position: relative;
-  aspect-ratio: 1;
-  border-radius: 8px;
+  text-align: center;
+}
+
+/* Position album items in grid (rows 2-4) */
+.album-item:nth-child(1) { grid-column: 1; grid-row: 2; }
+.album-item:nth-child(2) { grid-column: 2; grid-row: 2; }
+.album-item:nth-child(3) { grid-column: 3; grid-row: 2; }
+.album-item:nth-child(4) { grid-column: 4; grid-row: 2; }
+.album-item:nth-child(5) { grid-column: 1; grid-row: 3; }
+.album-item:nth-child(6) { grid-column: 2; grid-row: 3; }
+.album-item:nth-child(7) { grid-column: 3; grid-row: 3; }
+.album-item:nth-child(8) { grid-column: 4; grid-row: 3; }
+.album-item:nth-child(9) { grid-column: 1; grid-row: 4; }
+.album-item:nth-child(10) { grid-column: 2; grid-row: 4; }
+.album-item:nth-child(11) { grid-column: 3; grid-row: 4; }
+.album-item:nth-child(12) { grid-column: 4; grid-row: 4; }
+
+.album-item {
+  position: relative;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.05);
   transition: transform var(--transition-fast);
@@ -239,9 +225,10 @@
 }
 
 .album-artwork {
-  width: 100%;
+  width: auto;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .album-overlay {
@@ -279,119 +266,53 @@
 
 /* Responsive adjustments */
 @media (max-width: 800px) {
-  .idle-screen {
-    padding: 1rem;
-  }
-  
-  .idle-content {
-    gap: 1.5rem;
-  }
-  
-  /* Stack stats row su mobile RIMOSSO: ora sempre riga */
-  
-  .scrobbles-stat {
-    width: 200px;
-    min-width: 200px;
-  }
-  
-  .last-track {
-    text-align: center;
-    max-width: 100%;
-  }
-  
-  .albums-grid {
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(4, 1fr);
-    gap: 0.8rem;
-    max-width: 600px;
-  }
-  
-  .track-card {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .track-details {
-    text-align: center;
-  }
-  
   .track-artwork {
-    width: 80px;
-    height: 80px;
+    width: calc((100vh - 2rem) / 4 - 1rem);
+    height: calc((100vh - 2rem) / 4 - 1rem);
+  }
+  
+  .track-label {
+    font-size: clamp(0.6rem, 1.2vw, 0.8rem);
+  }
+  
+  .track-title {
+    font-size: clamp(0.8rem, 1.8vw, 1rem);
+  }
+  
+  .track-album {
+    font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+  }
+  
+  .track-artist {
+    font-size: clamp(0.6rem, 1.3vw, 0.8rem);
   }
   
   .stat-number {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
   }
   
-  .scrobbles-stat {
-    padding: 1rem 1.5rem;
+  .stat-label {
+    font-size: clamp(0.6rem, 1.5vw, 0.9rem);
   }
 }
 
 /* Square screen adjustments */
 @media (aspect-ratio: 1/1) {
-  .idle-content {
-    max-width: 90vw;
-  }
-  
-  .stats-row {
-    max-width: 600px;
-    gap: 0.8rem;
-  }
-  
-  .scrobbles-stat {
-    width: calc((600px - 2.4rem) / 4);
-    min-width: calc((600px - 2.4rem) / 4);
-    padding: 0.8rem;
-  }
-  
-  .stat-number {
-    font-size: 1.8rem;
-  }
-  
-  .stat-label {
-    font-size: 0.7rem;
-  }
-  
-  .last-track h3 {
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .albums-grid {
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    max-width: 600px;
-    gap: 0.8rem;
-  }
+  /* Grid layout automatically adapts to square screens */
 }
 
 /* Very small screens */
 @media (max-width: 480px) {
-  .albums-grid {
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(6, 1fr);
-    gap: 0.6rem;
+  .idle-screen {
+    padding: 0.5rem;
   }
   
-  .stats-row {
-    gap: 1.5rem;
+  .last-track {
+    gap: 0.5rem;
+    padding: 0.5rem;
   }
   
-  .album-name {
-    font-size: 0.7rem;
-  }
-  
-  .album-artist {
-    font-size: 0.6rem;
-  }
-  
-  .track-title {
-    font-size: 0.9rem;
-  }
-  
-  .track-artist {
-    font-size: 0.8rem;
+  .scrobbles-stat {
+    padding: 0.5rem;
   }
 }

@@ -86,6 +86,10 @@ A modern, touch-friendly web application that displays currently playing music f
 
    AUTO_SETUP_INSTALL_SOFTWARE_ID=9 17 113
 
+   # Configure Chromium screen resolution
+   SOFTWARE_CHROMIUM_RES_X=720
+   SOFTWARE_CHROMIUM_RES_Y=720
+
    ```
 
    **Edit `dietpi-wifi.txt`** (WiFi credentials):

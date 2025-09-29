@@ -77,30 +77,6 @@ echo "🖥️  Setting up kiosk mode..."
 chmod +x kiosk.sh
 cp kiosk.sh /opt/kiosk.sh
 
-# Install Chromium for kiosk mode
-echo "🌐 Installing Chromium..."
-apt install -y chromium-browser unclutter x11-xserver-utils
-
-# Create systemd service for kiosk
-cat > /etc/systemd/system/kiosk.service << EOF
-[Unit]
-Description=Kiosk Mode
-After=graphical-session.target
-
-[Service]
-Type=simple
-User=root
-ExecStart=/opt/kiosk.sh
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=graphical-session.target
-EOF
-
-# Enable kiosk service
-systemctl enable kiosk.service
-
 echo "✅ Installation completed!"
 echo ""
 

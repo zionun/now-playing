@@ -1,18 +1,15 @@
 #!/bin/bash
 
-# Kiosk mode script for Raspberry Pi
-# Place this file in /opt/kiosk.sh and make it executable
-
+# Set display
 export DISPLAY=:0
 
-# Hide cursor and disable screen blanking
-unclutter -idle 0.1 -root &
+# Disable screen blanking / DPMS
 xset s off
 xset -dpms
 xset s noblank
 
 # Launch Chromium in kiosk mode
-chromium-browser \
+chromium \
   --no-sandbox \
   --disable-infobars \
   --disable-session-crashed-bubble \

@@ -83,9 +83,9 @@ A modern, touch-friendly web application that displays currently playing music f
    
    # Enable SSH for remote access
    AUTO_SETUP_SSH_SERVER_INDEX=-2  # OpenSSH
-   
-   # Auto-install required software
-   AUTO_SETUP_INSTALL_SOFTWARE_ID=17 9 113  # Git, Node.js and Chromium
+
+   AUTO_SETUP_INSTALL_SOFTWARE_ID=9 17 113
+
    ```
 
    **Edit `dietpi-wifi.txt`** (WiFi credentials):
@@ -128,22 +128,29 @@ A modern, touch-friendly web application that displays currently playing music f
 3. **SSH Into Your Pi**:
    ```bash
    # Connect via SSH (use the password you set in dietpi.txt)
-   ssh root@192.168.1.XXX  # Replace XXX with your Pi's IP
+   ssh dietpi@192.168.1.XXX  # Replace XXX with your Pi's IP
    
    # DietPi will complete any remaining setup automatically
    # You may be prompted to change passwords (recommended)
    ```
 
-4. **Configure Performance Settings**:
+4. **Install Additional Software**:
+   ```bash
+   # Install LightDM
+   sudo apt install -y lightdm openbox
+   ```
+
+5. **Configure Performance Settings and Autostart options**:
    ```bash
    # Open DietPi configuration
    dietpi-config
    
    # Navigate to:
    # → Performance Options → CPU Governor → "performance"  
-   # → AutoStart Options → 11: LightDM (for GUI/kiosk mode)
-   
-   # Note: GPU memory split is configured in Step 4 via /boot/config.txt
+   # → AutoStart Options → 11: Chromium (dedicated use without desktop)
+
+   # Note: GPU memory split is configured in Step 5 via /boot/config.txt
+   # Note: AutoStart will be configured after Chromium installation
    ```
 
 ### Step 4: Performance Optimizations
@@ -190,7 +197,7 @@ cd now-playing
 
 # Run the installation script
 chmod +x install.sh
-./install.sh
+sudo ./install.sh
 
 # The installer will:
 # - Install all dependencies (client and server)
@@ -208,38 +215,8 @@ sudo tee -a /etc/lightdm/lightdm.conf << 'EOF'
 xserver-command=X -nocursor
 EOF
 
-# Create kiosk startup script for DietPi
-sudo mkdir -p /home/dietpi/.config/openbox
-sudo tee /home/dietpi/.config/openbox/autostart << 'EOF'
-# Ensure Now Playing server is running
-cd /home/dietpi/now-playing
-pm2 start ecosystem.config.cjs 2>/dev/null || true
-pm2 save
-
-# Wait for server to start
-sleep 15
-
-# Launch browser in kiosk mode (optimized for 720x720 HyperPixel)
-chromium-browser \
-  --kiosk \
-  --no-sandbox \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --disable-restore-session-state \
-  --disable-features=VizDisplayCompositor \
-  --window-size=720,720 \
-  --window-position=0,0 \
-  --disable-dev-shm-usage \
-  --no-first-run \
-  http://localhost:3001
-EOF
-
-# Set correct permissions
-sudo chown -R root:root /home/dietpi/.config
-sudo chmod +x /home/dietpi/.config/openbox/autostart
-
-# DietPi should already be configured for LightDM autostart
-# Verify with: dietpi-config → AutoStart Options → should be "11: LightDM"
+# DietPi should already be configured for Chromium autostart
+# Verify with: dietpi-config → AutoStart Options → should be "11: Chromium"
 
 # Test the kiosk setup
 sudo reboot
@@ -294,7 +271,7 @@ mkdir -p ~/.config/openbox
 ```
 </details>
 
-### Step 7: Final Configuration
+### Step 8: Final Configuration
 
 1. **Configure the App**:
    - The Pi should auto-boot into kiosk mode
@@ -367,7 +344,8 @@ git --version   # Should show 2.x+
 chromium-browser --version  # Should show version info
 
 # If any software is missing, install manually:
-sudo dietpi-software install 9 17 113  # Node.js, Git, Chromium
+sudo dietpi-software install 9 17  # Node.js, Git
+sudo dietpi-software install 113   # Chromium (if kiosk mode needed)
 ```
 
 **Headless setup not working:**
@@ -399,9 +377,9 @@ sudo dietpi-config
 
 **Kiosk mode not starting:**
 ```bash
-# Check if LightDM is configured
+# Check if Chromium autostart is configured
 sudo dietpi-config
-# Ensure AutoStart is set to "11: LightDM"
+# Ensure AutoStart is set to "11: Chromium (dedicated use without desktop)"
 
 # Test openbox autostart script manually
 DISPLAY=:0 /home/dietpi/.config/openbox/autostart

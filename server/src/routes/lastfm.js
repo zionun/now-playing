@@ -15,6 +15,7 @@ router.get('/idle-data', async (req, res) => {
     const data = await lastfmService.getIdleScreenData()
     res.json(data)
   } catch (error) {
+    console.error('❌ Error in /idle-data route:', error)
     res.status(400).json({ error: error.message })
   }
 })

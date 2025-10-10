@@ -182,8 +182,8 @@
 }
 
 .control-button {
-  width: 80px; /* Aumentato da 60px */
-  height: 80px; /* Aumentato da 60px */
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
   border: none;
@@ -237,9 +237,36 @@
   transition: transform 0.1s ease;
 }
 
+/* Stati disabilitati */
+.control-button:disabled,
+.control-button.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.control-button.disabled .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.control-button.play-pause.disabled {
+  background: rgba(229, 160, 13, 0.3);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .control-button.play-pause {
-  width: 100px; /* Aumentato da 80px */
-  height: 100px; /* Aumentato da 80px */
+  width: 80px;
+  height: 80px;
   background: var(--accent-color);
   /* Stato iniziale semplificato */
   opacity: 0;
@@ -268,13 +295,13 @@
 }
 
 .control-button svg {
-  width: 28px; /* Aumentato da 24px */
-  height: 28px; /* Aumentato da 24px */
+  width: 24px;
+  height: 24px;
 }
 
 .control-button.play-pause svg {
-  width: 36px; /* Aumentato da 32px */
-  height: 36px; /* Aumentato da 32px */
+  width: 32px;
+  height: 32px;
 }
 
 /* Overlay Track Info con animazione */

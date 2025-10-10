@@ -12,7 +12,13 @@
     "start": "cd server && npm start",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install"
   },
-  "keywords": ["plex", "now-playing", "raspberry-pi", "react", "music"],
+  "keywords": [
+    "plex",
+    "now-playing",
+    "raspberry-pi",
+    "react",
+    "music"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {

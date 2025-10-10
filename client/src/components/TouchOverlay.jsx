@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './TouchOverlay.css'
 
-const TouchOverlay = ({ show, onInteraction, onClose, track, nowPlaying, activeUsers, selectedUser }) => {
+const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUsers, selectedUser, hasControls = false }) => {
   const { sendMediaControl, switchUser } = useWebSocket()
   const [isAnimating, setIsAnimating] = useState(false)
 
-  // VERSIONE CHECK - se vedi questo, hai l'ultima versione!
-  console.log('🎯 TouchOverlay LOADED - VERSION 2024-12-29-20:30 🎯') // Version check
-
   const handleControlClick = (action, event) => {
     event.stopPropagation()
+    if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
     onInteraction()
     sendMediaControl(action)
   }
@@ -73,41 +71,45 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, nowPlaying, activeU
         )}
 
         {/* Media controls */}
-        <div className="media-controls" onClick={(e) => handleControlClick('previous', e)}>
+        <div className="media-controls">
           <button 
-            className="control-button"
+            className={`control-button ${!hasControls ? 'disabled' : ''}`}
             onClick={(e) => handleControlClick('previous', e)}
             aria-label="Previous track"
+            disabled={!hasControls}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
             </svg>
+            {!hasControls && <div className="spinner"></div>}
           </button>
 
           <button 
-            className="control-button play-pause"
-            onClick={(e) => handleControlClick(nowPlaying?.isPlaying ? 'pause' : 'play', e)}
-            aria-label={nowPlaying?.isPlaying ? 'Pause' : 'Play'}
+            className={`control-button play-pause ${!hasControls ? 'disabled' : ''}`}
+            onClick={(e) => handleControlClick(isPlaying ? 'pause' : 'play', e)}
+            aria-label={isPlaying ? "Pause" : "Play"}
+            disabled={!hasControls}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
-              {nowPlaying?.isPlaying ? (
-                // Icona pause
+              {isPlaying ? (
                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
               ) : (
-                // Icona play
                 <path d="M8 5v14l11-7z"/>
               )}
             </svg>
+            {!hasControls && <div className="spinner"></div>}
           </button>
 
           <button 
-            className="control-button"
+            className={`control-button ${!hasControls ? 'disabled' : ''}`}
             onClick={(e) => handleControlClick('next', e)}
             aria-label="Next track"
+            disabled={!hasControls}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
             </svg>
+            {!hasControls && <div className="spinner"></div>}
           </button>
         </div>
 

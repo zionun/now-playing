@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react'
+import { useWebSocket } from '../context/WebSocketContext'
 import './IdleScreen.css'
 
-const IdleScreen = ({ onInteraction }) => {
+const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRemaining, isPaused, hasControls = false }) => {
+  const { socket } = useWebSocket()
   const [lastfmData, setLastfmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    // Carica sempre i dati Last.fm per la griglia
     fetchLastfmData()
     
     // Refresh data every 5 minutes
     const interval = setInterval(fetchLastfmData, 5 * 60 * 1000)
     
     return () => clearInterval(interval)
-  }, [])
+  }, [hasResumeOption])
 
   const fetchLastfmData = async () => {
     try {
@@ -33,6 +36,18 @@ const IdleScreen = ({ onInteraction }) => {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResume = (event) => {
+    event.stopPropagation() // Previene il trigger di onInteraction
+    if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
+    console.log('handleResume clicked', { socket: !!socket, connected: socket?.connected })
+    if (socket && socket.connected) {
+      console.log('Richiesta resume da pausa manuale')
+      socket.emit('resumeFromPause')
+    } else {
+      console.error('Socket non connessa per resume')
     }
   }
 
@@ -67,53 +82,22 @@ const IdleScreen = ({ onInteraction }) => {
     return '/placeholder-artwork.jpg'
   }
 
-  // Function to remove duplicate albums based on album name and artist
+  // Function to remove duplicate albums (mantenendo solo deduplicazione)
   const getUniqueAlbums = (albums) => {
     if (!albums || !Array.isArray(albums)) return []
     
-    console.log('Original albums:', albums.map(album => ({
+    console.log('Albums from Last.fm API:', albums.map(album => ({
       name: album.name,
       artist: album.artist?.name || album.artist,
-      playcount: album.playcount
+      playcount: album.playcount,
+      rank: album.rank
     })))
     
-    const uniqueMap = new Map()
+    // Last.fm weeklyalbumchart già fornisce ordinamento per rank, 
+    // quindi manteniamo l'ordine originale
+    const uniqueAlbums = albums.slice(0, 12)
     
-    // Helper function to normalize strings for comparison
-    const normalize = (str) => {
-      if (!str) return 'unknown'
-      return str
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s]/g, '') // Remove special characters
-        .replace(/\s+/g, ' ')     // Normalize spaces
-        .trim()
-    }
-    
-    albums.forEach((album, index) => {
-      const artistName = album.artist?.name || album.artist || 'Unknown Artist'
-      const albumName = album.name || 'Unknown Album'
-      
-      const normalizedArtist = normalize(artistName)
-      const normalizedAlbum = normalize(albumName)
-      const key = `${normalizedArtist}-${normalizedAlbum}`
-      
-      console.log(`Album ${index}:`, {
-        original: `${artistName} - ${albumName}`,
-        normalized: key,
-        hasKey: uniqueMap.has(key)
-      })
-      
-      // Keep the first occurrence (which should have higher play count from API)
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, album)
-      } else {
-        console.log(`Duplicate found: ${artistName} - ${albumName}`)
-      }
-    })
-    
-    const uniqueAlbums = Array.from(uniqueMap.values()).slice(0, 12)
-    console.log('Final unique albums count:', uniqueAlbums.length)
+    console.log('Final albums count:', uniqueAlbums.length)
     
     return uniqueAlbums
   }
@@ -144,8 +128,38 @@ const IdleScreen = ({ onInteraction }) => {
             <div className="stat-label">Scrobbles</div>
           </div>
           
-          {/* Last track - Grid position 2-4,1 */}
-          {lastfmData.lastTrack && (
+          {/* Last track or resume track - Grid position 2-4,1 */}
+          {hasResumeOption && resumeTrack ? (
+            <div className="last-track">
+              <div className="track-artwork-container">
+                <img 
+                  src={resumeTrack.thumb || '/placeholder-artwork.jpg'}
+                  alt="Resume artwork"
+                  className="track-artwork"
+                  onError={(e) => {
+                    e.target.src = '/placeholder-artwork.jpg'
+                  }}
+                />
+                <button 
+                  className={`play-overlay ${!hasControls ? 'disabled' : ''}`}
+                  onClick={handleResume}
+                  onTouchStart={handleResume}
+                  disabled={!hasControls}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                  {!hasControls && <div className="spinner"></div>}
+                </button>
+              </div>
+              <div className="track-info-container">
+                <div className="track-label">Traccia in pausa</div>
+                <div className="track-title">{resumeTrack.title}</div>
+                <div className="track-album">{resumeTrack.album || 'Album sconosciuto'}</div>
+                <div className="track-artist">{resumeTrack.artist}</div>
+              </div>
+            </div>
+          ) : lastfmData.lastTrack ? (
             <div className="last-track">
               <img 
                 src={getTrackImage(lastfmData.lastTrack)}
@@ -162,13 +176,13 @@ const IdleScreen = ({ onInteraction }) => {
                 <div className="track-artist">{lastfmData.lastTrack.artist?.['#text'] || lastfmData.lastTrack.artist}</div>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Top albums - Grid positions 1-4, 2-4 */}
           {lastfmData.topAlbums && lastfmData.topAlbums.length > 0 && (
             <div className="top-albums">
               <div className="albums-grid">
-                {getUniqueAlbums(lastfmData.topAlbums).map((album, index) => (
+                {lastfmData.topAlbums.map((album, index) => (
                   <div key={`${album.artist?.name || album.artist}-${album.name}-${index}`} className="album-item">
                     <img 
                       src={getAlbumImage(album)}

@@ -22,9 +22,23 @@ export const WebSocketProvider = ({ children }) => {
   const [connectionStatus, setConnectionStatus] = useState('connecting')
 
   useEffect(() => {
-    // Connect to WebSocket server
-    const socketConnection = io(window.location.origin, {
-      transports: ['websocket', 'polling']
+    // Connect to WebSocket server with more robust settings
+    // In development, connect directly to the server port
+    // In production, use the same origin as the served content
+    const serverUrl = process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:3001'
+    console.log('Tentativo di connessione WebSocket a:', serverUrl)
+    
+    const socketConnection = io(serverUrl, {
+      transports: ['websocket', 'polling'],
+      upgrade: true,
+      rememberUpgrade: true,
+      timeout: 20000,
+      forceNew: false,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      maxReconnectionAttempts: 5,
+      autoConnect: true
     })
 
     socketConnection.on('connect', () => {
@@ -44,7 +58,66 @@ export const WebSocketProvider = ({ children }) => {
 
     // Listen for now playing updates
     socketConnection.on('nowPlaying', (data) => {
-      setNowPlaying(data)
+      console.log('Ricevuti dati nowPlaying dal server:', data);
+      
+      // Fallback di sicurezza se il server invia null o dati malformati
+      if (!data || typeof data !== 'object') {
+        console.warn('Ricevuti dati nowPlaying non validi:', data);
+        const fallbackData = {
+          isPlaying: false,
+          track: {
+            title: "Connessione in corso...",
+            artist: "Sistema",
+            album: "",
+            isLastFm: false
+          },
+          activeUsers: [],
+          selectedUser: null
+        };
+        setNowPlaying(fallbackData);
+        return;
+      }
+
+      // Se i dati sono già nel formato corretto (con track object), usali direttamente
+      if (data.track && typeof data.track === 'object') {
+        console.log('Dati già nel formato corretto:', data);
+        setNowPlaying(data);
+        return;
+      }
+
+      // Altrimenti, converti i dati del server nel formato che il client si aspetta (legacy)
+      console.log('Valori chiave per track:', {
+        hasTrack: data.hasTrack,
+        trackTitle: data.trackTitle,
+        trackArtist: data.trackArtist,
+        oldConditionResult: data.hasTrack && data.trackTitle,
+        newConditionResult: !!data.trackTitle
+      });
+
+      const formattedData = {
+        isPlaying: data.isPlaying || false,
+        isPaused: data.isPaused || false,
+        hasResumeOption: data.hasResumeOption || false,
+        pauseTimeRemaining: data.pauseTimeRemaining || 0,
+        track: data.trackTitle ? {
+          title: data.trackTitle,
+          artist: data.trackArtist || 'Artista sconosciuto',
+          album: data.trackAlbum || '',
+          thumb: data.trackThumb || '',
+          parentThumb: data.trackParentThumb || '',
+          grandparentThumb: data.trackGrandparentThumb || '',
+          duration: data.trackDuration || 0,
+          viewOffset: data.trackViewOffset || 0,
+          isLastFm: false
+        } : null,
+        resumeTrack: data.resumeTrack || null,
+        activeUsers: Array.isArray(data.activeUsers) ? data.activeUsers : [],
+        selectedUser: data.selectedUser || null
+      };
+
+      console.log('Dati nowPlaying formattati:', formattedData);
+      console.log('Track risultante:', formattedData.track);
+      setNowPlaying(formattedData);
     })
 
     socketConnection.on('error', (error) => {

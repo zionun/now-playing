@@ -40,20 +40,39 @@ export class LastfmService {
     return response.data.recenttracks?.track || []
   }
 
-  async getTopAlbums(period = '1month', limit = 12) {
+  async getTopAlbums(period = '7day', limit = 12) {
     const config = this.configService.getLastfmConfig()
     
+    // Usa user.gettopalbums con periodo 7day per gli album più ascoltati dell'ultima settimana
     const params = {
       method: 'user.gettopalbums',
       user: config.username,
       api_key: config.apiKey,
       format: 'json',
-      period,
-      limit: Math.max(limit * 2, 24) // Get more albums to account for duplicates
+      period: period,
+      limit: limit
     }
 
     const response = await axios.get(this.baseUrl, { params })
-    return response.data.topalbums?.album || []
+    const topAlbums = response.data.topalbums?.album || []
+    
+    // Gli album sono già ordinati per playcount dal server Last.fm
+    const formattedAlbums = topAlbums
+      .slice(0, limit)
+      .map((album, index) => ({
+        name: album.name,
+        artist: {
+          name: album.artist?.name || album.artist?.['#text'] || album.artist
+        },
+        image: album.image || [],
+        playcount: album.playcount || '0',
+        url: album.url || '',
+        rank: (index + 1).toString() // Rank basato sulla posizione nell'array
+      }))
+    
+    console.log('Top albums (7day) from Last.fm:', formattedAlbums.map(a => `${a.rank}. ${a.artist.name} - ${a.name} (${a.playcount} plays)`))
+    
+    return formattedAlbums
   }
 
   async getIdleScreenData() {
@@ -61,13 +80,13 @@ export class LastfmService {
       const [userInfo, recentTrack, topAlbums] = await Promise.all([
         this.getUserInfo(),
         this.getRecentTracks(1),
-        this.getTopAlbums('1month', 24) // Request more albums
+        this.getTopAlbums('7day', 12) // Album più ascoltati degli ultimi 7 giorni ordinati per playcount
       ])
 
       return {
         scrobbles: parseInt(userInfo.playcount || 0),
         lastTrack: Array.isArray(recentTrack) ? recentTrack[0] : recentTrack,
-        topAlbums: topAlbums // Return all albums, deduplication will happen in frontend
+        topAlbums: topAlbums // Ordinati per playcount dalla API Last.fm
       }
     } catch (error) {
       console.error('Error fetching Last.fm data:', error)

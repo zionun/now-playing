@@ -10,43 +10,24 @@ import WebSocket from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { ConfigService } from './services/ConfigService.js';
-import { LastfmService } from './services/LastfmService.js';
-import lastfmRouter, { setLastfmService } from './routes/lastfm.js';
 
 dotenv.config();
 
 const execAsync = promisify(exec);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// 📋 INIZIALIZZAZIONE SERVIZIO CONFIGURAZIONE
-const configService = new ConfigService();
-await configService.loadConfig();
-const appConfig = configService.getConfig();
-
-// 📋 INIZIALIZZAZIONE SERVIZI
-const lastfmService = new LastfmService(configService);
-
 // 📋 CONFIGURAZIONE AVANZATA - Server principale con funzionalità multi-player
 const CONFIG = {
-  // Token e server Plex (priorità: variabili ambiente > config file > default)
-  PLEX_TOKEN: process.env.PLEX_TOKEN || appConfig.plex?.token || 'REMOVED',
-  PLEX_SERVER_URL: process.env.PLEX_SERVER_URL || `http://${appConfig.plex?.url || '192.168.1.11'}:${appConfig.plex?.port || 32400}`,
-  PLEX_SERVER_PORT: process.env.PLEX_SERVER_PORT || appConfig.plex?.port || 32400,
+  // Token e server Plex (da variabili ambiente o default)
+  PLEX_TOKEN: process.env.PLEX_TOKEN || 'REMOVED',
+  PLEX_SERVER_URL: process.env.PLEX_SERVER_URL || 'http://192.168.1.11:32400',
+  PLEX_SERVER_PORT: process.env.PLEX_SERVER_PORT || 32400,
   
   // Player IP opzionale (verrà scoperto automaticamente)
   PLAYER_IP: process.env.PLAYER_IP || null,
   
   // Configurazione client
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
-  
-  // Configurazione Last.fm
-  LASTFM: {
-    username: appConfig.lastfm?.username || '',
-    apiKey: appConfig.lastfm?.apiKey || '',
-    apiSecret: appConfig.lastfm?.apiSecret || '',
-    sessionKey: appConfig.lastfm?.sessionKey || ''
-  }
+  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000"
 };
 
 // Cache per i player scoperti
@@ -59,11 +40,6 @@ let currentDisplayedTrack = null; // {ratingKey, title, artist, machineIdentifie
 let playingTracks = new Map(); // Map: ratingKey -> [{machineIdentifier, sessionKey, state, title, artist}]
 let trackPlayerHistory = new Map(); // Map: ratingKey -> machineIdentifier (ultimo player che ha suonato la traccia)
 let playerLastActivity = new Map(); // Map: machineIdentifier -> timestamp
-
-// ⏸️ GESTIONE PAUSA E RESUME - Nuovo sistema intelligente
-let manualPauseState = null; // {ratingKey, machineIdentifier, sessionKey, timestamp, trackInfo, playerInfo}
-let pauseTimer = null; // Timer per 30 secondi dopo pausa manuale
-let lastUserAction = null; // Traccia l'ultima azione dell'utente {action, timestamp, machineIdentifier}
 
 // 🔌 PLEX WEBSOCKET - Monitoraggio eventi in tempo reale
 let plexWebSocket = null;
@@ -174,75 +150,6 @@ async function getActiveSessions() {
   }
 }
 
-// 📋 TRASFORMAZIONE URL IMMAGINI PLEX
-function transformPlexImageUrl(imageUrl) {
-  if (!imageUrl) return null;
-  
-  // Se l'URL è già completa, restituiscila così com'è
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return imageUrl;
-  }
-  
-  // Se è un'URL relativa di Plex, trasformala in URL completa con token
-  if (imageUrl.startsWith('/')) {
-    return `${CONFIG.PLEX_SERVER_URL}${imageUrl}?X-Plex-Token=${CONFIG.PLEX_TOKEN}`;
-  }
-  
-  return imageUrl;
-}
-
-// 📋 LAST.FM FALLBACK - Integrazione con API Last.fm
-async function getLastFmTrack() {
-  try {
-    // Controlla se Last.fm è configurato
-    if (!CONFIG.LASTFM.username || !CONFIG.LASTFM.apiKey) {
-      return {
-        title: "Last.fm non configurato",
-        artist: "Configurazione richiesta",
-        album: "Aggiungi username e API key",
-        isLastFm: true,
-        isPlaying: false
-      };
-    }
-
-    // Recupera l'ultima traccia da Last.fm
-    const lastFmUrl = `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${CONFIG.LASTFM.username}&api_key=${CONFIG.LASTFM.apiKey}&format=json&limit=1`;
-    
-    const response = await axios.get(lastFmUrl, { timeout: 5000 });
-    
-    if (response.data && response.data.recenttracks && response.data.recenttracks.track && response.data.recenttracks.track.length > 0) {
-      const track = response.data.recenttracks.track[0];
-      
-      return {
-        title: track.name || "Titolo sconosciuto",
-        artist: track.artist?.['#text'] || track.artist || "Artista sconosciuto",
-        album: track.album?.['#text'] || track.album || "",
-        thumb: track.image?.[2]?.['#text'] || null, // Immagine media
-        isLastFm: true,
-        isPlaying: !!track['@attr']?.nowplaying, // true se nowplaying
-        lastfmUrl: track.url
-      };
-    } else {
-      return {
-        title: "Nessuna traccia trovata",
-        artist: CONFIG.LASTFM.username,
-        album: "Last.fm",
-        isLastFm: true,
-        isPlaying: false
-      };
-    }
-  } catch (error) {
-    console.error('❌ Errore Last.fm:', error.message);
-    return {
-      title: "Errore Last.fm",
-      artist: error.message.includes('timeout') ? "Timeout connessione" : "Errore API",
-      album: "Last.fm",
-      isLastFm: true,
-      isPlaying: false
-    };
-  }
-}
-
 // 📋 ANALISI SESSIONI E PLAYER ATTIVI
 // 🎵 ANALISI SESSIONI AVANZATA CON GESTIONE MULTI-PLAYER
 function analyzeActiveSessions(sessions) {
@@ -250,29 +157,10 @@ function analyzeActiveSessions(sessions) {
   const currentPlayingTracks = new Map();
   let primaryPlayer = null;
   
-  if (sessions && sessions.MediaContainer) {
-    // 🎵 FILTRO ELEGANTE: Cerca solo elementi Track nelle sessioni
-    const allContent = Array.isArray(sessions.MediaContainer.Metadata) 
+  if (sessions && sessions.MediaContainer && sessions.MediaContainer.Metadata) {
+    const tracks = Array.isArray(sessions.MediaContainer.Metadata) 
       ? sessions.MediaContainer.Metadata 
       : [sessions.MediaContainer.Metadata];
-    
-    // Filtra solo gli elementi di tipo Track (musica)
-    const tracks = allContent.filter(item => {
-      if (!item) return false;
-      
-      // In XML parsing, il nome del tag diventa una proprietà
-      // Track = musica, Video = video/episodi
-      const isTrack = item.type === 'track' || 
-                     (typeof item === 'object' && !item.type && item.grandparentTitle && item.parentTitle);
-      
-      if (!isTrack) {
-        console.log(`🎵 Saltando contenuto non musicale: ${item.type || 'unknown'} - "${item.title || 'unknown'}"`);
-      }
-      
-      return isTrack;
-    });
-    
-    console.log(`🎵 Trovate ${tracks.length} tracce musicali su ${allContent.length} elementi totali`);
     
     for (const track of tracks) {
       if (track.Player && track.Player.machineIdentifier) {
@@ -315,7 +203,7 @@ function analyzeActiveSessions(sessions) {
           playerName: playerInfo.name
         });
         
-        // Logica di selezione del player primario (priorità a player controllabili in LAN)
+        // Logica di selezione del player primario
         if (currentDisplayedTrack && currentDisplayedTrack.ratingKey === ratingKey) {
           // Se la traccia corrente è già visualizzata, controlla se è su un player diverso
           if (playerInfo.state === 'playing' && 
@@ -327,20 +215,9 @@ function analyzeActiveSessions(sessions) {
             currentDisplayedTrack.machineIdentifier = machineId;
             trackPlayerHistory.set(ratingKey, machineId);
           }
-        } else if (playerInfo.state === 'playing') {
-          // Logica di priorità per player in "playing"
-          const isControllable = availablePlayers.has(machineId);
-          const currentIsControllable = primaryPlayer ? availablePlayers.has(primaryPlayer.machineIdentifier) : false;
-          
-          if (!primaryPlayer) {
-            // Primo player in "playing" diventa primary
-            primaryPlayer = playerInfo;
-            console.log(`🎯 Player primario selezionato: ${playerInfo.name} (${isControllable ? 'controllabile' : 'non controllabile'})`);
-          } else if (isControllable && !currentIsControllable) {
-            // Priorità a player controllabili in LAN
-            console.log(`🎯 Switch a player LAN: ${playerInfo.name} (da ${primaryPlayer.name})`);
-            primaryPlayer = playerInfo;
-          }
+        } else if (!primaryPlayer && playerInfo.state === 'playing') {
+          // Primo player in "playing" diventa primary
+          primaryPlayer = playerInfo;
         }
       }
     }
@@ -367,18 +244,11 @@ function analyzeActiveSessions(sessions) {
   playingTracks.clear();
   playingTracks = new Map(currentPlayingTracks);
   
-  // ⏸️ PULIZIA STATO PAUSA MANUALE SE NECESSARIO (solo se timer scaduto)
-  if (manualPauseState && activePlayersLocal.size === 0 && !pauseTimer) {
-    // Nessuna sessione attiva, c'era una pausa manuale E il timer è scaduto - fine naturale
-    console.log(`🧹 Nessuna sessione musicale attiva e timer scaduto - Cancellando stato pausa manuale`);
-    manualPauseState = null;
-  }
-  
-  console.log(`🎵 Sessioni analizzate: ${activePlayersLocal.size} player con tracce musicali attive`);
+  console.log(`🎵 Sessioni analizzate: ${activePlayersLocal.size} player attivi`);
   if (primaryPlayer) {
     const hasControls = availablePlayers.has(primaryPlayer.machineIdentifier) ? '✅' : '❌';
-    console.log(`🎯 Player musicale primario: ${primaryPlayer.name} (${primaryPlayer.state}) - ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title}`);
-    console.log(`🎵 Now Playing (Music): ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title} (${primaryPlayer.state}) - Controls: ${hasControls}`);
+    console.log(`🎯 Player primario: ${primaryPlayer.name} (${primaryPlayer.state}) - ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title}`);
+    console.log(`🎵 Now Playing: ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title} (${primaryPlayer.state}) - Controls: ${hasControls}`);
     
     // Log di tracce multiple se presenti
     if (playingTracks.size > 1) {
@@ -393,249 +263,6 @@ function analyzeActiveSessions(sessions) {
   return { activePlayers: activePlayersLocal, primaryPlayer };
 }
 
-// 📋 EMISSIONE SICURA - Gestisce errori di connessione
-function safeEmit(event, data) {
-  try {
-    console.log(`📡 Emitting ${event} to ${io.engine.clientsCount} clients`);
-    if (event === 'nowPlaying') {
-      console.log(`🎵 NowPlaying data:`, {
-        isPlaying: data?.isPlaying,
-        hasTrack: !!data?.track,
-        trackTitle: data?.track?.title,
-        trackArtist: data?.track?.artist,
-        activeUsers: data?.activeUsers?.length || 0
-      });
-    }
-    io.emit(event, data);
-    console.log(`✅ Successfully emitted ${event}`);
-  } catch (error) {
-    console.error(`❌ Errore emissione ${event}:`, error.message);
-    console.error('❌ Stack trace:', error.stack);
-    // Non rilanciare l'errore per evitare crash
-  }
-}
-
-// 📋 AGGIORNAMENTO COUNTDOWN - Solo per pausa manuale (senza interrogare Plex)
-async function updateCountdownAndBroadcast() {
-  try {
-    // Controlla se c'è una pausa manuale attiva
-    if (!manualPauseState || !pauseTimer) {
-      return; // Nessun countdown da aggiornare
-    }
-    
-    console.log('⏱️ Aggiornamento countdown pausa manuale...');
-    
-    const track = {
-      title: manualPauseState.trackInfo.title,
-      artist: manualPauseState.trackInfo.artist,
-      album: manualPauseState.trackInfo.album,
-      duration: manualPauseState.trackInfo.duration,
-      viewOffset: manualPauseState.trackInfo.viewOffset,
-      thumb: transformPlexImageUrl(manualPauseState.trackInfo.thumb),
-      art: transformPlexImageUrl(manualPauseState.trackInfo.art),
-      ratingKey: manualPauseState.trackInfo.ratingKey,
-      isLastFm: false
-    };
-    
-    const pauseTimeRemaining = Math.max(0, 30000 - (Date.now() - manualPauseState.timestamp));
-    
-    const nowPlayingData = {
-      isPlaying: false, // In pausa
-      track: track,
-      activeUsers: [{
-        id: manualPauseState.machineIdentifier,
-        name: manualPauseState.playerInfo.name,
-        state: 'paused',
-        sessionKey: manualPauseState.sessionKey
-      }],
-      selectedUser: manualPauseState.machineIdentifier,
-      isPaused: true, // Flag per indicare pausa manuale
-      pauseTimeRemaining: pauseTimeRemaining,
-      hasControls: availablePlayers.has(manualPauseState.machineIdentifier)
-    };
-    
-    console.log(`⏱️ Countdown: ${Math.ceil(pauseTimeRemaining / 1000)}s rimanenti`);
-    
-    // Broadcast solo del countdown aggiornato
-    safeEmit('nowPlaying', nowPlayingData);
-    
-    return nowPlayingData;
-  } catch (error) {
-    console.error('❌ Errore aggiornamento countdown:', error.message);
-    return null;
-  }
-}
-
-// 📋 AGGIORNAMENTO SESSIONI E BROADCAST COMPATIBILE
-async function updateSessionsAndBroadcast() {
-  try {
-    console.log('🔄 Avvio updateSessionsAndBroadcast...');
-    const sessions = await getActiveSessions();
-    console.log('📊 Sessioni ricevute:', sessions ? 'OK' : 'NULL');
-    
-    const analysis = analyzeActiveSessions(sessions);
-    const { activePlayers: activePlayersLocal, primaryPlayer } = analysis;
-    
-    console.log(`🎯 Analysis result: ${activePlayersLocal.size} players, primary: ${primaryPlayer ? primaryPlayer.name : 'NONE'}`);
-    
-    // Aggiorna le mappe globali
-    activePlayers.clear();
-    for (const [machineId, playerInfo] of activePlayersLocal) {
-      activePlayers.set(machineId, playerInfo);
-    }
-    
-    // Emit sessioni complete a tutti i client connessi (per compatibilità)
-    if (sessions) {
-      safeEmit('sessionsUpdate', sessions);
-    }
-    
-    let nowPlayingData = null;
-    
-    // ⏸️ GESTIONE PAUSA MANUALE - Priorità MASSIMA
-    if (manualPauseState && pauseTimer) {
-      // L'utente ha messo manualmente in pausa, mantieni interfaccia per 30s
-      const track = {
-        title: manualPauseState.trackInfo.title,
-        artist: manualPauseState.trackInfo.artist,
-        album: manualPauseState.trackInfo.album,
-        duration: manualPauseState.trackInfo.duration,
-        viewOffset: manualPauseState.trackInfo.viewOffset,
-        thumb: transformPlexImageUrl(manualPauseState.trackInfo.thumb),
-        art: transformPlexImageUrl(manualPauseState.trackInfo.art),
-        ratingKey: manualPauseState.trackInfo.ratingKey,
-        isLastFm: false
-      };
-      
-      nowPlayingData = {
-        isPlaying: false, // In pausa
-        track: track,
-        activeUsers: [{
-          id: manualPauseState.machineIdentifier,
-          name: manualPauseState.playerInfo.name,
-          state: 'paused',
-          sessionKey: manualPauseState.sessionKey
-        }],
-        selectedUser: manualPauseState.machineIdentifier,
-        isPaused: true, // Flag per indicare pausa manuale
-        pauseTimeRemaining: Math.max(0, 30000 - (Date.now() - manualPauseState.timestamp)),
-        hasControls: availablePlayers.has(manualPauseState.machineIdentifier)
-      };
-      
-      console.log(`⏸️ Mantenendo interfaccia per pausa manuale (${Math.ceil(nowPlayingData.pauseTimeRemaining / 1000)}s rimanenti)`);
-    }
-    // ⏸️ CONTROLLO SE C'È UNA PAUSA MANUALE SCADUTA
-    else if (manualPauseState && !pauseTimer) {
-      // Pausa manuale scaduta - mostra idle con opzione resume
-      console.log(`⏰ Pausa manuale scaduta - Mostrando idle con resume`);
-      
-      const lastFmTrack = await getLastFmTrack();
-      
-      nowPlayingData = {
-        isPlaying: false,
-        isPaused: false, // La pausa è scaduta, ora siamo in idle
-        track: lastFmTrack,
-        activeUsers: [],
-        selectedUser: null,
-        hasResumeOption: true, // Flag per mostrare opzione resume
-        hasControls: availablePlayers.has(manualPauseState.machineIdentifier),
-        resumeTrack: {
-          title: manualPauseState.trackInfo.title,
-          artist: manualPauseState.trackInfo.artist,
-          album: manualPauseState.trackInfo.album,
-          thumb: transformPlexImageUrl(manualPauseState.trackInfo.thumb),
-          ratingKey: manualPauseState.ratingKey,
-          machineIdentifier: manualPauseState.machineIdentifier,
-          sessionKey: manualPauseState.sessionKey,
-          playerName: manualPauseState.playerInfo.name
-        }
-      };
-    }
-    else if (primaryPlayer && primaryPlayer.state === 'playing') {
-      // Traccia in riproduzione normale
-      const track = {
-        title: primaryPlayer.trackInfo.title,
-        artist: primaryPlayer.trackInfo.artist,
-        album: primaryPlayer.trackInfo.album,
-        duration: primaryPlayer.trackInfo.duration,
-        viewOffset: primaryPlayer.trackInfo.viewOffset,
-        thumb: transformPlexImageUrl(primaryPlayer.trackInfo.thumb),
-        art: transformPlexImageUrl(primaryPlayer.trackInfo.art),
-        ratingKey: primaryPlayer.trackInfo.ratingKey,
-        isLastFm: false
-      };
-      
-      nowPlayingData = {
-        isPlaying: true,
-        isPaused: false,
-        track: track,
-        activeUsers: Array.from(activePlayers.values()).map(player => ({
-          id: player.machineIdentifier,
-          name: player.name,
-          state: player.state,
-          sessionKey: player.sessionKey
-        })),
-        selectedUser: primaryPlayer.machineIdentifier,
-        hasControls: availablePlayers.has(primaryPlayer.machineIdentifier)
-      };
-    }
-    else if (primaryPlayer && primaryPlayer.state === 'paused') {
-      // Traccia in pausa - mostrar IdleScreen con opzione resume
-      console.log(`⏸️ Traccia in pausa esistente - Mostrando idle con resume`);
-      
-      const lastFmTrack = await getLastFmTrack();
-      
-      nowPlayingData = {
-        isPlaying: false,
-        isPaused: false, // Per IdleScreen
-        track: lastFmTrack,
-        activeUsers: [],
-        selectedUser: null,
-        hasResumeOption: true,
-        hasControls: availablePlayers.has(primaryPlayer.machineIdentifier),
-        resumeTrack: {
-          title: primaryPlayer.trackInfo.title,
-          artist: primaryPlayer.trackInfo.artist,
-          album: primaryPlayer.trackInfo.album,
-          thumb: transformPlexImageUrl(primaryPlayer.trackInfo.thumb),
-          ratingKey: primaryPlayer.trackInfo.ratingKey,
-          machineIdentifier: primaryPlayer.machineIdentifier,
-          sessionKey: primaryPlayer.sessionKey,
-          playerName: primaryPlayer.name
-        }
-      };
-    } else {
-      // Fine naturale della riproduzione - Last.fm normale
-      const lastFmTrack = await getLastFmTrack();
-      
-      nowPlayingData = {
-        isPlaying: false,
-        track: lastFmTrack,
-        activeUsers: [],
-        selectedUser: null,
-        hasControls: false // Nessun player attivo, controlli disabilitati
-      };
-    }
-    
-    // Broadcast ai client nel formato corretto
-    console.log('📤 Invio nowPlayingData:', {
-      type: nowPlayingData ? 'DATA' : 'NULL',
-      isPlaying: nowPlayingData?.isPlaying,
-      hasTrack: !!nowPlayingData?.track,
-      isPaused: nowPlayingData?.isPaused,
-      hasResumeOption: nowPlayingData?.hasResumeOption,
-      hasControls: nowPlayingData?.hasControls
-    });
-    
-    safeEmit('nowPlaying', nowPlayingData);
-    
-    return nowPlayingData;
-  } catch (error) {
-    console.error('❌ Errore aggiornamento sessioni:', error.message);
-    console.error('❌ Stack trace completo:', error.stack);
-    return null;
-  }
-}
-
 // 📋 CONTROLLO MEDIA
 async function mediaControl(command, sessionKey = null, targetMachineId = null) {
   try {
@@ -646,26 +273,12 @@ async function mediaControl(command, sessionKey = null, targetMachineId = null) 
       targetIP = availablePlayers.get(targetMachineId).ip;
       console.log(`🎯 Usando player specifico: ${targetMachineId} su ${targetIP}`);
     } 
-    // OTTIMIZZAZIONE: Se non specifico un player, uso quello attivo corrente
-    else if (activePlayers.size > 0) {
-      // Trova il player primario attivo
-      const activePlayersList = Array.from(activePlayers.values());
-      const playingPlayer = activePlayersList.find(p => p.state === 'playing') || activePlayersList[0];
-      
-      if (playingPlayer && availablePlayers.has(playingPlayer.machineIdentifier)) {
-        targetIP = availablePlayers.get(playingPlayer.machineIdentifier).ip;
-        targetMachineId = playingPlayer.machineIdentifier; // Salva per il sessionKey
-        console.log(`🎯 Usando player attivo: ${playingPlayer.name} (${playingPlayer.machineIdentifier}) su ${targetIP}`);
-      }
-    }
-    // Usa il player configurato se disponibile
+    // Altrimenti usa il player configurato o fa discovery
     else if (CONFIG.PLAYER_IP) {
       targetIP = CONFIG.PLAYER_IP;
-      console.log(`🎯 Usando player configurato: ${targetIP}`);
     } 
     else {
       // Fallback: prova a usare l'IP del server Plex per discovery
-      console.log(`🔍 Nessun player disponibile in cache, avvio discovery...`);
       const serverIP = new URL(CONFIG.PLEX_SERVER_URL).hostname;
       await discoverAllPlexPlayers(serverIP);
       
@@ -704,75 +317,17 @@ async function mediaControl(command, sessionKey = null, targetMachineId = null) 
       'X-Plex-Token': CONFIG.PLEX_TOKEN
     };
     
-    // Aggiungi sessionKey se fornito, altrimenti usa quello del player attivo
+    // Aggiungi sessionKey se fornito
     if (sessionKey) {
       params.sessionKey = sessionKey;
-    } else if (targetMachineId && activePlayers.has(targetMachineId)) {
-      const activePlayer = activePlayers.get(targetMachineId);
-      if (activePlayer.sessionKey) {
-        params.sessionKey = activePlayer.sessionKey;
-        console.log(`🔑 Usando sessionKey del player attivo: ${activePlayer.sessionKey}`);
-      }
     }
     
-    console.log(`🎮 Invio comando: ${command} → ${plexCommand} a ${targetIP}:32500${params.sessionKey ? ` (session: ${params.sessionKey})` : ''}`);
+    console.log(`🎮 Invio comando: ${command} → ${plexCommand} a ${targetIP}:32500`);
     
     const response = await axios.get(controlUrl, {
       params: params,
       timeout: 5000
     });
-    
-    // ⏸️ TRACCIA AZIONI MANUALI DELL'UTENTE
-    lastUserAction = {
-      action: command,
-      timestamp: Date.now(),
-      machineIdentifier: targetMachineId,
-      sessionKey: params.sessionKey
-    };
-    
-    // ⏸️ GESTIONE PAUSA MANUALE
-    if (command === 'pause' && targetMachineId && activePlayers.has(targetMachineId)) {
-      const activePlayer = activePlayers.get(targetMachineId);
-      manualPauseState = {
-        ratingKey: activePlayer.ratingKey,
-        machineIdentifier: targetMachineId,
-        sessionKey: params.sessionKey,
-        timestamp: Date.now(),
-        trackInfo: { ...activePlayer.trackInfo },
-        playerInfo: {
-          name: activePlayer.name,
-          ip: targetIP
-        }
-      };
-      
-      console.log(`⏸️ Pausa manuale registrata: ${activePlayer.trackInfo.artist} - ${activePlayer.trackInfo.title}`);
-      
-      // Avvia timer di 30 secondi
-      if (pauseTimer) {
-        clearTimeout(pauseTimer);
-      }
-      
-      pauseTimer = setTimeout(() => {
-        console.log(`⏰ Timer pausa scaduto (30s) - Passaggio a idle...`);
-        
-        // Cancella lo stato di pausa manuale e il timer
-        manualPauseState = null;
-        pauseTimer = null;
-        
-        // Forza aggiornamento per passare a idle
-        updateSessionsAndBroadcast();
-      }, 30000); // 30 secondi
-    }
-    
-    // ⏸️ CANCELLA PAUSA MANUALE SE L'UTENTE RIPRENDE
-    if (command === 'play' && manualPauseState) {
-      console.log(`▶️ Ripresa da pausa manuale`);
-      manualPauseState = null;
-      if (pauseTimer) {
-        clearTimeout(pauseTimer);
-        pauseTimer = null;
-      }
-    }
     
     console.log(`✅ Comando ${command} → ${plexCommand} eseguito con successo`);
     return { success: true, command: command, plexCommand: plexCommand };
@@ -796,124 +351,25 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../../client/dist')));
 
-// 📋 REGISTRAZIONE ROUTE API
-setLastfmService(lastfmService);
-app.use('/api/lastfm', lastfmRouter);
-
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: CONFIG.CLIENT_URL,
     methods: ["GET", "POST"]
-  },
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  upgradeTimeout: 30000,
-  allowEIO3: true
-});
-
-// Gestione errori del server Socket.io
-io.engine.on('connection_error', (err) => {
-  console.error('❌ Errore connessione Socket.io:', err.req ? `${err.req.method} ${err.req.url}` : 'Unknown');
-  console.error('❌ Dettagli errore:', err.message);
-});
-
-// Gestione globale errori EPIPE per evitare crash
-process.on('uncaughtException', (err) => {
-  if (err.code === 'EPIPE') {
-    console.log('⚠️ EPIPE ignorato (client disconnesso)');
-    return;
   }
-  console.error('❌ Errore non gestito:', err);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Promise rifiutata:', reason);
 });
 
 // 📋 WEBSOCKET HANDLERS
 io.on('connection', (socket) => {
   console.log('🔌 Client connesso:', socket.id);
-  console.log(`👥 Totale client connessi: ${io.engine.clientsCount}`);
   
-  // Gestione errori del socket
-  socket.on('error', (error) => {
-    console.error(`❌ Errore socket ${socket.id}:`, error.message);
-  });
-  
-  // Invia immediatamente lo stato al nuovo client
-  console.log('📨 Invio stato iniziale al nuovo client...');
-  updateSessionsAndBroadcast();
-  
-  // Handler per controlli media compatibile con il client React originale
+  // Handler per controlli media
   socket.on('mediaControl', async (data) => {
-    // Supporta sia il formato nuovo {command, sessionKey} che quello vecchio {type}
-    const command = data.command || data.type;
-    const sessionKey = data.sessionKey;
-    const machineIdentifier = data.machineIdentifier;
-    
+    const { command, sessionKey, machineIdentifier } = data;
     console.log(`📨 Ricevuto comando: ${command} per player ${machineIdentifier || 'default'}`);
     
     const result = await mediaControl(command, sessionKey, machineIdentifier);
     socket.emit('mediaControlResponse', result);
-    
-    // Aggiorna le sessioni dopo il comando
-    setTimeout(async () => {
-      await updateSessionsAndBroadcast();
-    }, 1000);
-  });
-
-  // ⏸️ Handler per resume da pausa manuale o esistente
-  socket.on('resumeFromPause', async () => {
-    let sessionKey = null;
-    let machineIdentifier = null;
-    let trackInfo = null;
-    
-    if (manualPauseState) {
-      // Resume da pausa manuale
-      console.log(`▶️ Resume richiesto per pausa manuale: ${manualPauseState.trackInfo.artist} - ${manualPauseState.trackInfo.title}`);
-      sessionKey = manualPauseState.sessionKey;
-      machineIdentifier = manualPauseState.machineIdentifier;
-      trackInfo = manualPauseState.trackInfo;
-    } else {
-      // Cerca un player in pausa per resume da pausa esistente
-      const pausedPlayer = Array.from(activePlayers.values()).find(p => p.state === 'paused');
-      
-      if (pausedPlayer) {
-        console.log(`▶️ Resume richiesto per traccia in pausa: ${pausedPlayer.trackInfo.artist} - ${pausedPlayer.trackInfo.title}`);
-        sessionKey = pausedPlayer.sessionKey;
-        machineIdentifier = pausedPlayer.machineIdentifier;
-        trackInfo = pausedPlayer.trackInfo;
-      }
-    }
-    
-    if (sessionKey && machineIdentifier) {
-      const result = await mediaControl(
-        'play', 
-        sessionKey, 
-        machineIdentifier
-      );
-      
-      socket.emit('resumeResponse', result);
-      
-      // Pulisci stato di pausa manuale se era una pausa manuale
-      if (result.success && manualPauseState) {
-        manualPauseState = null;
-        if (pauseTimer) {
-          clearTimeout(pauseTimer);
-          pauseTimer = null;
-        }
-      }
-      
-      // Aggiorna le sessioni
-      setTimeout(async () => {
-        await updateSessionsAndBroadcast();
-      }, 1000);
-    } else {
-      socket.emit('resumeResponse', { success: false, error: 'Nessuna traccia in pausa trovata' });
-    }
   });
   
   // Handler per cambiare player attivo
@@ -964,12 +420,7 @@ io.on('connection', (socket) => {
     socket.emit('configResponse', {
       serverUrl: CONFIG.PLEX_SERVER_URL,
       availablePlayersCount: availablePlayers.size,
-      hasToken: !!CONFIG.PLEX_TOKEN,
-      lastfm: {
-        configured: !!(CONFIG.LASTFM.username && CONFIG.LASTFM.apiKey),
-        username: CONFIG.LASTFM.username || null,
-        hasApiKey: !!CONFIG.LASTFM.apiKey
-      }
+      hasToken: !!CONFIG.PLEX_TOKEN
     });
   });
   
@@ -1008,7 +459,7 @@ io.on('connection', (socket) => {
         console.log(`✅ Switch manuale completato: ${targetPlayer.artist} - ${targetPlayer.title} su ${targetPlayer.playerName}`);
         
         // Notifica tutti i client
-        safeEmit('trackSwitched', {
+        io.emit('trackSwitched', {
           ratingKey,
           machineIdentifier,
           trackInfo: targetPlayer,
@@ -1072,6 +523,14 @@ io.on('connection', (socket) => {
   });
   
   // 🔄 COMPATIBILITÀ CLIENT REACT ORIGINALE
+  // Invia dati nel formato che si aspetta il client originale
+  socket.emit('nowPlaying', {
+    isPlaying: currentDisplayedTrack !== null,
+    track: currentDisplayedTrack,
+    activeUsers: Array.from(activePlayers.values()),
+    selectedUser: currentDisplayedTrack ? currentDisplayedTrack.machineIdentifier : null
+  });
+  
   // Handler legacy per switchUser (compatibilità)
   socket.on('switchUser', async (userId) => {
     console.log(`🔄 Switch legacy user: ${userId}`);
@@ -1079,13 +538,18 @@ io.on('connection', (socket) => {
       const playerInfo = activePlayers.get(userId);
       currentDisplayedTrack = {
         ratingKey: playerInfo.ratingKey,
-        title: playerInfo.trackInfo.title,
-        artist: playerInfo.trackInfo.artist,
+        title: playerInfo.title,
+        artist: playerInfo.artist,
         machineIdentifier: userId
       };
       
-      // Aggiorna e broadcast
-      await updateSessionsAndBroadcast();
+      // Broadcast aggiornamento
+      io.emit('nowPlaying', {
+        isPlaying: true,
+        track: currentDisplayedTrack,
+        activeUsers: Array.from(activePlayers.values()),
+        selectedUser: userId
+      });
     }
   });
   
@@ -1125,66 +589,6 @@ app.get('/api/discover', async (req, res) => {
   }
 });
 
-// 📋 ENDPOINT LAST.FM PER IDLE SCREEN
-app.get('/api/lastfm/idle-data', async (req, res) => {
-  try {
-    // Controlla se Last.fm è configurato
-    if (!CONFIG.LASTFM.username || !CONFIG.LASTFM.apiKey) {
-      return res.status(400).json({ 
-        error: 'Last.fm not configured',
-        message: 'Please configure Last.fm username and API key' 
-      });
-    }
-
-    // Recupera informazioni utente
-    const userInfoUrl = `http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${CONFIG.LASTFM.username}&api_key=${CONFIG.LASTFM.apiKey}&format=json`;
-    
-    // Recupera tracce recenti
-    const recentTracksUrl = `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${CONFIG.LASTFM.username}&api_key=${CONFIG.LASTFM.apiKey}&format=json&limit=1`;
-    
-    // Recupera album più ascoltati
-    const topAlbumsUrl = `http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=${CONFIG.LASTFM.username}&api_key=${CONFIG.LASTFM.apiKey}&format=json&period=1month&limit=12`;
-
-    const [userResponse, recentResponse, albumsResponse] = await Promise.all([
-      axios.get(userInfoUrl, { timeout: 5000 }),
-      axios.get(recentTracksUrl, { timeout: 5000 }),
-      axios.get(topAlbumsUrl, { timeout: 5000 })
-    ]);
-
-    const userData = userResponse.data;
-    const recentData = recentResponse.data;
-    const albumsData = albumsResponse.data;
-
-    // Costruisci la risposta nel formato atteso dal client
-    const idleData = {
-      username: CONFIG.LASTFM.username,
-      scrobbles: parseInt(userData.user?.playcount || 0),
-      lastTrack: null,
-      topAlbums: []
-    };
-
-    // Ultima traccia
-    if (recentData.recenttracks && recentData.recenttracks.track && recentData.recenttracks.track.length > 0) {
-      idleData.lastTrack = recentData.recenttracks.track[0];
-    }
-
-    // Album più ascoltati
-    if (albumsData.topalbums && albumsData.topalbums.album) {
-      idleData.topAlbums = Array.isArray(albumsData.topalbums.album) 
-        ? albumsData.topalbums.album 
-        : [albumsData.topalbums.album];
-    }
-
-    res.json(idleData);
-  } catch (error) {
-    console.error('❌ Errore endpoint Last.fm:', error.message);
-    res.status(500).json({ 
-      error: 'Last.fm API error',
-      message: error.message 
-    });
-  }
-});
-
 // Serve React app for all non-API routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
@@ -1212,7 +616,7 @@ function connectToPlexWebSocket() {
     console.log('📡 Monitoraggio eventi in tempo reale attivo');
     
     // Notifica ai client Socket.io
-    safeEmit('plexWebSocketStatus', { 
+    io.emit('plexWebSocketStatus', { 
       connected: true, 
       message: 'WebSocket connessa - eventi in tempo reale attivi' 
     });
@@ -1258,7 +662,7 @@ function connectToPlexWebSocket() {
                 trackPlayerHistory.set(ratingKey, machineId);
                 
                 // Notifica ai client del cambio player
-                safeEmit('playerSwitched', {
+                io.emit('playerSwitched', {
                   ratingKey,
                   newMachineIdentifier: machineId,
                   previousMachineIdentifier: previousPlayer,
@@ -1291,13 +695,27 @@ function connectToPlexWebSocket() {
       }
       
       // Trasmetti eventi ai client Socket.io
-      safeEmit('plexEvent', eventData);
+      io.emit('plexEvent', eventData);
       
       // Trigger refresh delle sessioni per aggiornamento UI
       if (eventData.NotificationContainer) {
         console.log('🔄 Triggering session refresh dopo evento...');
         setTimeout(async () => {
-          await updateSessionsAndBroadcast();
+          try {
+            const sessions = await getActiveSessions();
+            if (sessions) {
+              const analysis = analyzeActiveSessions(sessions);
+              io.emit('sessionsUpdate', {
+                sessions,
+                analysis,
+                currentDisplayedTrack,
+                availablePlayers: Object.fromEntries(availablePlayers),
+                playingTracks: Object.fromEntries(playingTracks)
+              });
+            }
+          } catch (error) {
+            console.error('❌ Errore refresh sessioni:', error);
+          }
         }, 500); // Piccolo delay per permettere a Plex di aggiornare le sessioni
       }
       
@@ -1310,7 +728,7 @@ function connectToPlexWebSocket() {
     console.error('❌ Errore WebSocket:', error);
     
     // Notifica ai client Socket.io
-    safeEmit('plexWebSocketStatus', { 
+    io.emit('plexWebSocketStatus', { 
       connected: false, 
       message: 'WebSocket disconnessa - tentativo riconnessione...' 
     });
@@ -1320,7 +738,7 @@ function connectToPlexWebSocket() {
     console.log(`🔌 WebSocket chiusa - Codice: ${code}, Motivo: ${reason}`);
     
     // Notifica ai client Socket.io
-    safeEmit('plexWebSocketStatus', { 
+    io.emit('plexWebSocketStatus', { 
       connected: false, 
       message: 'WebSocket disconnessa - tentativo riconnessione...' 
     });
@@ -1333,48 +751,59 @@ function connectToPlexWebSocket() {
   });
 }
 
-// 📋 MONITORAGGIO CONTINUO - Doppia frequenza
-let monitoringInterval = null;
-let countdownInterval = null;
-
+// �📋 MONITORAGGIO CONTINUO
 function startMonitoring() {
-  console.log('📡 Avvio monitoraggio sessioni avanzato (solo contenuti musicali)...');
+  console.log('📡 Avvio monitoraggio sessioni avanzato...');
   
-  // Monitoraggio normale ogni 10 secondi
-  monitoringInterval = setInterval(async () => {
+  setInterval(async () => {
     try {
-      // Usa la logica completa che gestisce correttamente la pausa manuale
-      await updateSessionsAndBroadcast();
+      const sessions = await getActiveSessions();
+      
+      if (sessions && sessions.MediaContainer && sessions.MediaContainer.Metadata) {
+        // Analizza le sessioni per identificare player attivi
+        const { activePlayers, primaryPlayer } = analyzeActiveSessions(sessions);
+        
+        // Emit sessioni complete a tutti i client connessi
+        io.emit('sessionsUpdate', sessions);
+        
+        if (primaryPlayer) {
+          const state = primaryPlayer.state;
+          const isPlaying = state === 'playing';
+          
+          // Controlla se abbiamo l'IP per questo player
+          const hasPlayerIP = availablePlayers.has(primaryPlayer.machineIdentifier);
+          const showControls = hasPlayerIP;
+          
+          const nowPlayingData = {
+            ...primaryPlayer.trackInfo,
+            state: state,
+            isPlaying: isPlaying,
+            sessionKey: primaryPlayer.sessionKey,
+            machineIdentifier: primaryPlayer.machineIdentifier,
+            playerName: primaryPlayer.name,
+            showControls: showControls, // 🎮 Mostra controlli solo se abbiamo l'IP del player
+            availablePlayers: Array.from(activePlayers.values()).map(p => ({
+              machineIdentifier: p.machineIdentifier,
+              name: p.name,
+              state: p.state,
+              hasIP: availablePlayers.has(p.machineIdentifier)
+            }))
+          };
+          
+          console.log(`🎵 Now Playing: ${nowPlayingData.artist} - ${nowPlayingData.title} (${nowPlayingData.state}) - Controls: ${showControls ? '✅' : '❌'}`);
+          io.emit('nowPlaying', nowPlayingData);
+        } else {
+          io.emit('nowPlaying', null);
+        }
+      } else {
+        // Nessuna sessione attiva
+        console.log('📭 Nessuna sessione attiva');
+        io.emit('nowPlaying', null);
+      }
     } catch (error) {
       console.error('❌ Errore monitoraggio:', error.message);
     }
-  }, 10000); // Controlla ogni 10 secondi per sessioni Plex
-  
-  // Monitoraggio countdown ogni secondo (solo quando necessario)
-  countdownInterval = setInterval(async () => {
-    try {
-      // Aggiorna solo se c'è un countdown attivo (pausa manuale)
-      if (manualPauseState && pauseTimer) {
-        await updateCountdownAndBroadcast();
-      }
-    } catch (error) {
-      console.error('❌ Errore monitoraggio countdown:', error.message);
-    }
-  }, 1000); // Controlla ogni 1 secondo solo per countdown
-  
-  console.log('📡 Monitoraggio avviato: 10s per sessioni, 1s per countdown');
-}
-
-function stopMonitoring() {
-  if (monitoringInterval) {
-    clearInterval(monitoringInterval);
-    monitoringInterval = null;
-  }
-  if (countdownInterval) {
-    clearInterval(countdownInterval);
-    countdownInterval = null;
-  }
-  console.log('📡 Monitoraggio arrestato');
+  }, 3000); // Controlla ogni 3 secondi
 }
 
 // 📋 STARTUP

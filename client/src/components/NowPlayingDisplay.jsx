@@ -8,6 +8,8 @@ const NowPlayingDisplay = () => {
   const { nowPlaying, connectionStatus } = useWebSocket()
   const [showOverlay, setShowOverlay] = useState(false)
   const [overlayTimeout, setOverlayTimeout] = useState(null)
+  const [interpolatedProgress, setInterpolatedProgress] = useState(0)
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
 
   // Apply kiosk mode styles (no scroll) for the main display
   useEffect(() => {
@@ -20,6 +22,36 @@ const NowPlayingDisplay = () => {
       document.documentElement.style.overflow = 'auto'
     }
   }, [])
+
+  // Effect per aggiornare il progresso quando arrivano nuovi dati dal server
+  useEffect(() => {
+    if (nowPlaying?.track?.viewOffset !== undefined && nowPlaying?.track?.duration > 0) {
+      setInterpolatedProgress((nowPlaying.track.viewOffset / nowPlaying.track.duration) * 100)
+      setLastUpdateTime(Date.now())
+    }
+  }, [nowPlaying?.track?.viewOffset, nowPlaying?.track?.duration])
+
+  // Effect per interpolare il progresso ogni secondo quando la musica è in riproduzione
+  useEffect(() => {
+    if (!nowPlaying?.isPlaying || !nowPlaying?.track?.duration) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now()
+      const timeSinceUpdate = now - lastUpdateTime
+      const progressIncrement = (timeSinceUpdate / nowPlaying.track.duration) * 100
+      
+      setInterpolatedProgress(prev => {
+        const newProgress = prev + progressIncrement
+        // Non superare il 100% e fermarsi se siamo vicini alla fine
+        return Math.min(newProgress, 100)
+      })
+      setLastUpdateTime(now)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [nowPlaying?.isPlaying, nowPlaying?.track?.duration, lastUpdateTime])
 
   const handleInteraction = (event) => {
     // Previeni multiple chiamate da touch + click
@@ -94,9 +126,30 @@ const NowPlayingDisplay = () => {
     )
   }
 
-  // Show idle screen when no music is playing
-  if (!nowPlaying.isPlaying) {
-    return <IdleScreen onInteraction={handleInteraction} />
+  // Safety check for malformed nowPlaying data
+  if (!nowPlaying || !nowPlaying.track) {
+    return (
+      <div className="now-playing-container">
+        <div className="connection-status">
+          <div className="spinner"></div>
+          <p>Caricamento dati...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show idle screen when no music is playing OR when there's a resume option available
+  if ((!nowPlaying.isPlaying && !nowPlaying.isPaused) || nowPlaying.hasResumeOption) {
+    return (
+      <IdleScreen 
+        onInteraction={handleInteraction}
+        hasResumeOption={nowPlaying.hasResumeOption}
+        resumeTrack={nowPlaying.resumeTrack}
+        pauseTimeRemaining={nowPlaying.pauseTimeRemaining}
+        isPaused={nowPlaying.isPaused}
+        hasControls={nowPlaying.hasControls}
+      />
+    )
   }
 
   const { track } = nowPlaying
@@ -121,11 +174,12 @@ const NowPlayingDisplay = () => {
       {/* Main content */}
       <div className="main-content">
         {/* Artwork */}
+        {/* Artwork */}
         <div className="artwork-container">
           <img 
             src={getArtwork()}
-            alt={`${track.title} artwork`}
-            className="artwork"
+            alt={`${track.title} - ${track.artist}`}
+            className="main-artwork"
             onError={(e) => {
               e.target.src = '/placeholder-artwork.jpg'
             }}
@@ -137,9 +191,19 @@ const NowPlayingDisplay = () => {
               <div 
                 className="progress-bar"
                 style={{
-                  width: `${(track.viewOffset / track.duration) * 100}%`
+                  width: `${interpolatedProgress}%`
                 }}
               />
+            </div>
+          )}
+          
+          {/* Pause timer indicator - posizionato sopra l'artwork */}
+          {nowPlaying.isPaused && nowPlaying.pauseTimeRemaining > 0 && (
+            <div className="pause-timer">
+              <div className="pause-indicator">⏸️ In pausa</div>
+              <div className="pause-countdown">
+                Idle in {Math.ceil(nowPlaying.pauseTimeRemaining / 1000)}s
+              </div>
             </div>
           )}
         </div>
@@ -160,9 +224,10 @@ const NowPlayingDisplay = () => {
         onInteraction={handleOverlayInteraction}
         onClose={handleCloseOverlay}
         track={track}
-        nowPlaying={nowPlaying}
+        isPlaying={nowPlaying.isPlaying}
         activeUsers={nowPlaying.activeUsers}
         selectedUser={nowPlaying.selectedUser}
+        hasControls={nowPlaying.hasControls}
       />
     </div>
   )

@@ -1,10 +1,12 @@
 import axios from 'axios'
 import xml2js from 'xml2js'
+import PlexAPI from 'plex-api'
 
 export class PlexService {
   constructor(configService, io) {
     this.configService = configService
     this.io = io
+    this.plexClient = null
     this.currentState = {
       isPlaying: false,
       track: null,
@@ -16,6 +18,26 @@ export class PlexService {
 
   startMonitoring() {
     this.stopMonitoring()
+    
+    // Initialize Plex client
+    const config = this.configService.getPlexConfig()
+    if (config.url && config.token) {
+      try {
+        this.plexClient = new PlexAPI({
+          hostname: config.url,
+          port: config.port,
+          token: config.token,
+          options: {
+            deviceName: 'now-playing-app',
+            identifier: 'now-playing-app-' + Date.now()
+          }
+        })
+        console.log('✅ PlexAPI client initialized successfully')
+      } catch (error) {
+        console.error('❌ Failed to initialize PlexAPI client:', error.message)
+        this.plexClient = null
+      }
+    }
     
     // Initial check
     this.checkNowPlaying()
@@ -224,7 +246,7 @@ export class PlexService {
     }
 
     const fullUrl = `${baseUrl}${endpoint}`
-    
+    console.log(`[PLEX DEBUG] Chiamata URL: ${fullUrl}`)
     try {
       await axios.get(fullUrl, {
         headers: {
@@ -232,13 +254,86 @@ export class PlexService {
         },
         params: {
           'X-Plex-Client-Identifier': 'now-playing-app',
-          'X-Plex-Target-Client-Identifier': playerId
+          'X-Plex-Target-Client-Identifier': playerId,
+          type: 'music'
         },
         timeout: 5000
       })
-      console.log('Media control successful')
+      console.log('Media control successful') // Debug
     } catch (error) {
-      console.error('Media control error:', error.response?.status, error.response?.statusText)
+      console.error('Axios error:', error.response?.status, error.response?.statusText) // Debug
+      console.error('Error details:', error.response?.data) // Debug
+      throw error
+    }
+
+    // Immediately check for updates
+    setTimeout(() => this.checkNowPlaying(), 500)
+  }
+
+  // Nuovo metodo usando plex-api per controlli media
+  async mediaControlWithLibrary(action) {
+    if (!this.plexClient) {
+      console.error('❌ PlexAPI client not initialized')
+      throw new Error('Plex client not initialized')
+    }
+
+    if (!this.currentState.track?.sessionId) {
+      console.error('❌ No active session available')
+      throw new Error('No active session')
+    }
+
+    if (!this.currentState.track?.playerId) {
+      console.error('❌ No player ID available')
+      throw new Error('No player ID available')
+    }
+
+    console.log('🎮 --- MEDIA CONTROL CON PLEX-API ---')
+    console.log('📱 Azione:', action)
+    console.log('🔑 Session ID:', this.currentState.track.sessionId)
+    console.log('🎯 Player ID:', this.currentState.track.playerId)
+    console.log('📡 PlexClient status:', this.plexClient ? 'initialized' : 'null')
+
+    try {
+      const playerId = this.currentState.track.playerId
+      console.log('🎯 Attempting control with player ID:', playerId)
+      
+      switch (action.type) {
+        case 'play':
+          console.log('▶️ Sending PLAY command')
+          await this.plexClient.perform('/player/playback/play', {
+            'X-Plex-Target-Client-Identifier': playerId,
+            'X-Plex-Client-Identifier': 'now-playing-app'
+          })
+          break
+        case 'pause':
+          console.log('⏸️ Sending PAUSE command')
+          await this.plexClient.perform('/player/playback/pause', {
+            'X-Plex-Target-Client-Identifier': playerId,
+            'X-Plex-Client-Identifier': 'now-playing-app'
+          })
+          break
+        case 'next':
+          console.log('⏭️ Sending NEXT command')
+          await this.plexClient.perform('/player/playback/skipNext', {
+            'X-Plex-Target-Client-Identifier': playerId,
+            'X-Plex-Client-Identifier': 'now-playing-app'
+          })
+          break
+        case 'previous':
+          console.log('⏮️ Sending PREVIOUS command')
+          await this.plexClient.perform('/player/playback/skipPrevious', {
+            'X-Plex-Target-Client-Identifier': playerId,
+            'X-Plex-Client-Identifier': 'now-playing-app'
+          })
+          break
+        default:
+          throw new Error(`Unknown action: ${action.type}`)
+      }
+      
+      console.log('✅ Media control con plex-api successful')
+    } catch (error) {
+      console.error('❌ Media control con plex-api error:', error.message)
+      console.error('❌ Error details:', error)
       throw error
     }
 

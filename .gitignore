@@ -16,7 +16,7 @@ build/
 .env.production.local
 
 # Configuration files
-server/config/app.json
+server/src/config/app.json
 
 # Logs
 *.log

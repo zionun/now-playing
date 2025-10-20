@@ -19,15 +19,15 @@ dotenv.config();
 const execAsync = promisify(exec);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// 📋 INIZIALIZZAZIONE SERVIZIO CONFIGURAZIONE
+// 📋 CONFIGURATION SERVICE INITIALIZATION
 const configService = new ConfigService();
 await configService.loadConfig();
 const appConfig = configService.getConfig();
 
-// 📋 INIZIALIZZAZIONE SERVIZI
+// 📋 SERVICES INITIALIZATION
 const lastfmService = new LastfmService(configService);
 
-// 📋 CONFIGURAZIONE AVANZATA - Server principale con funzionalità multi-player
+// 📋 ADVANCED CONFIGURATION - Main server with multi-player functionality
 const CONFIG = {
   // Token e server Plex (priorità: variabili ambiente > config file > default)
   PLEX_TOKEN: process.env.PLEX_TOKEN || appConfig.plex?.token || 'REMOVED',
@@ -54,7 +54,7 @@ let playerIPCache = new Map();
 let availablePlayers = new Map(); // Map: machineIdentifier -> {ip, name, product, version}
 let activePlayers = new Map(); // Map: machineIdentifier -> {sessionKey, state, ...playerInfo}
 
-// 🎵 GESTIONE MULTI-PLAYER AVANZATA
+// 🎵 ADVANCED MULTI-PLAYER MANAGEMENT
 let currentDisplayedTrack = null; // {ratingKey, title, artist, machineIdentifier}
 let playingTracks = new Map(); // Map: ratingKey -> [{machineIdentifier, sessionKey, state, title, artist}]
 let trackPlayerHistory = new Map(); // Map: ratingKey -> machineIdentifier (ultimo player che ha suonato la traccia)
@@ -138,7 +138,7 @@ async function discoverAllPlexPlayers(baseIP) {
               version: attrs.version
             };
             
-            console.log(`✅ Player Plex trovato: ${playerInfo.name} su ${ip} (${playerInfo.machineIdentifier})`);
+            console.log(`✅ Plex player found: ${playerInfo.name} on ${ip} (${playerInfo.machineIdentifier})`);
             
             // Salva nella cache dei player disponibili
             availablePlayers.set(attrs.machineIdentifier, playerInfo);
@@ -150,7 +150,7 @@ async function discoverAllPlexPlayers(baseIP) {
       }
     }
     
-    console.log(`🎮 Discovery completato: ${foundPlayers.length} player Plex trovati`);
+    console.log(`🎮 Discovery completed: ${foundPlayers.length} Plex players found`);
     return foundPlayers;
   } catch (error) {
     console.error('❌ Errore discovery:', error.message);
@@ -245,14 +245,14 @@ async function getLastFmTrack() {
 }
 
 // 📋 ANALISI SESSIONI E PLAYER ATTIVI
-// 🎵 ANALISI SESSIONI AVANZATA CON GESTIONE MULTI-PLAYER
+// 🎵 ADVANCED SESSION ANALYSIS WITH MULTI-PLAYER MANAGEMENT
 function analyzeActiveSessions(sessions) {
   const activePlayersLocal = new Map();
   const currentPlayingTracks = new Map();
   let primaryPlayer = null;
   
   if (sessions && sessions.MediaContainer) {
-    // 🎵 FILTRO ELEGANTE: Cerca solo elementi Track nelle sessioni
+    // 🎵 ELEGANT FILTER: Search only Track elements in sessions
     const allContent = Array.isArray(sessions.MediaContainer.Metadata) 
       ? sessions.MediaContainer.Metadata 
       : [sessions.MediaContainer.Metadata];
@@ -267,7 +267,7 @@ function analyzeActiveSessions(sessions) {
                      (typeof item === 'object' && !item.type && item.grandparentTitle && item.parentTitle);
       
       if (!isTrack) {
-        console.log(`🎵 Saltando contenuto non musicale: ${item.type || 'unknown'} - "${item.title || 'unknown'}"`);
+        console.log(`🎵 Skipping non-musical content: ${item.type || 'unknown'} - "${item.title || 'unknown'}"`);
       }
       
       return isTrack;
@@ -322,13 +322,13 @@ function analyzeActiveSessions(sessions) {
         // Logica di selezione del player primario (priorità a player controllabili in LAN)
         if (manualPlayerSelection && machineId === manualPlayerSelection && playerInfo.state === 'playing') {
           // 🎯 PRIORITÀ ASSOLUTA: Selezione manuale dell'utente
-          console.log(`🎯 Rispetto selezione manuale: ${playerInfo.name} (${machineId})`);
+          console.log(`🎯 Respecting manual selection: ${playerInfo.name} (${machineId})`);
           primaryPlayer = playerInfo;
         } else if (!manualPlayerSelection && currentDisplayedTrack && currentDisplayedTrack.ratingKey === ratingKey) {
           // Se la traccia corrente è già visualizzata, controlla se è su un player diverso
           if (playerInfo.state === 'playing' && 
               (!primaryPlayer || currentDisplayedTrack.machineIdentifier !== machineId)) {
-            console.log(`🔄 Switch automatico: stessa traccia ora su ${playerInfo.name} (${machineId})`);
+            console.log(`🔄 Automatic switch: same track now on ${playerInfo.name} (${machineId})`);
             primaryPlayer = playerInfo;
             
             // Aggiorna il tracking della traccia corrente
@@ -343,10 +343,10 @@ function analyzeActiveSessions(sessions) {
           if (!primaryPlayer) {
             // Primo player in "playing" diventa primary
             primaryPlayer = playerInfo;
-            console.log(`🎯 Player primario selezionato: ${playerInfo.name} (${isControllable ? 'controllabile' : 'non controllabile'})`);
+            console.log(`🎯 Primary player selected: ${playerInfo.name} (${isControllable ? 'controllable' : 'not controllable'})`);
           } else if (isControllable && !currentIsControllable) {
             // Priorità a player controllabili in LAN
-            console.log(`🎯 Switch a player LAN: ${playerInfo.name} (da ${primaryPlayer.name})`);
+            console.log(`🎯 Switch to LAN player: ${playerInfo.name} (from ${primaryPlayer.name})`);
             primaryPlayer = playerInfo;
           }
         }
@@ -378,30 +378,30 @@ function analyzeActiveSessions(sessions) {
   // ⏸️ PULIZIA STATO PAUSA MANUALE SE NECESSARIO (solo se timer scaduto)
   if (manualPauseState && activePlayersLocal.size === 0 && !pauseTimer) {
     // Nessuna sessione attiva, c'era una pausa manuale E il timer è scaduto - fine naturale
-    console.log(`🧹 Nessuna sessione musicale attiva e timer scaduto - Cancellando stato pausa manuale`);
+    console.log(`🧹 No active music sessions and timer expired - Clearing manual pause state`);
     manualPauseState = null;
   }
   
-  // 🧹 RESET SELEZIONE MANUALE se il player selezionato non è più attivo
+  // 🧹 RESET MANUAL SELECTION if selected player is no longer active
   if (manualPlayerSelection && !activePlayersLocal.has(manualPlayerSelection)) {
-    console.log(`🧹 Player selezionato manualmente (${manualPlayerSelection}) non più attivo - Reset selezione manuale`);
+    console.log(`🧹 Manually selected player (${manualPlayerSelection}) no longer active - Resetting manual selection`);
     manualPlayerSelection = null;
   }
   
-  console.log(`🎵 Sessioni analizzate: ${activePlayersLocal.size} player con tracce musicali attive`);
+  console.log(`🎵 Sessions analyzed: ${activePlayersLocal.size} players with active music tracks`);
   if (primaryPlayer) {
     const hasControls = availablePlayers.has(primaryPlayer.machineIdentifier) ? '✅' : '❌';
-    console.log(`🎯 Player musicale primario: ${primaryPlayer.name} (${primaryPlayer.state}) - ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title}`);
+    console.log(`🎯 Primary music player: ${primaryPlayer.name} (${primaryPlayer.state}) - ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title}`);
     console.log(`🎵 Now Playing (Music): ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title} (${primaryPlayer.state}) - Controls: ${hasControls}`);
     
     // Log informazioni utente per debug
     if (primaryPlayer.userTitle) {
-      console.log(`👤 Utente: ${primaryPlayer.userTitle} (ID: ${primaryPlayer.userId})`);
+      console.log(`👤 User: ${primaryPlayer.userTitle} (ID: ${primaryPlayer.userId})`);
     }
     
     // Log di tracce multiple se presenti
     if (playingTracks.size > 1) {
-      console.log(`🎮 ${playingTracks.size} tracce diverse in riproduzione:`);
+      console.log(`🎮 ${playingTracks.size} different tracks playing:`);
       for (const [ratingKey, players] of playingTracks) {
         const track = players[0];
         console.log(`  📀 ${track.artist} - ${track.title} su ${players.length} player(s)`);
@@ -475,7 +475,7 @@ async function updateCountdownAndBroadcast() {
       multiplePlayers: false // Solo un player in pausa manuale
     };
     
-    console.log(`⏱️ Countdown: ${Math.ceil(pauseTimeRemaining / 1000)}s rimanenti`);
+    console.log(`⏱️ Countdown: ${Math.ceil(pauseTimeRemaining / 1000)}s remaining`);
     
     // Broadcast solo del countdown aggiornato
     safeEmit('nowPlaying', nowPlayingData);
@@ -492,7 +492,7 @@ async function updateSessionsAndBroadcast() {
   try {
     console.log('🔄 Avvio updateSessionsAndBroadcast...');
     const sessions = await getActiveSessions();
-    console.log('📊 Sessioni ricevute:', sessions ? 'OK' : 'NULL');
+    console.log('📊 Sessions received:', sessions ? 'OK' : 'NULL');
     
     const analysis = analyzeActiveSessions(sessions);
     const { activePlayers: activePlayersLocal, primaryPlayer } = analysis;
@@ -603,7 +603,7 @@ async function updateSessionsAndBroadcast() {
       const primaryUserKey = primaryPlayer.userTitle || 'unknown-user';
       const sameUserPlayers = playersByUser.get(primaryUserKey) || [primaryPlayer];
       
-      console.log(`👤 Utenti trovati: ${playersByUser.size}, Player dell'utente primario: ${sameUserPlayers.length}`);
+      console.log(`👤 Users found: ${playersByUser.size}, Primary user's players: ${sameUserPlayers.length}`);
       console.log('🔍 Debug sameUserPlayers:', sameUserPlayers.map(p => ({ id: p.machineIdentifier, name: p.name, state: p.state })));
       
       nowPlayingData = {
@@ -1122,10 +1122,10 @@ io.on('connection', (socket) => {
     }
   });
   
-  // 🔄 COMPATIBILITÀ CLIENT REACT ORIGINALE
-  // Handler legacy per switchUser (compatibilità)
+  // 🔄 ORIGINAL REACT CLIENT COMPATIBILITY
+  // Legacy handler for switchUser (compatibility)
   socket.on('switchUser', async (userId) => {
-    console.log(`🔄 RICEVUTO Switch legacy user request: ${userId}`);
+    console.log(`🔄 RECEIVED Switch legacy user request: ${userId}`);
     console.log(`🔍 availablePlayers:`, Array.from(availablePlayers.keys()));
     console.log(`🔍 activePlayers:`, Array.from(activePlayers.keys()));
     console.log(`🔍 availablePlayers has userId: ${availablePlayers.has(userId)}`);
@@ -1135,7 +1135,7 @@ io.on('connection', (socket) => {
       const playerInfo = activePlayers.get(userId);
       console.log(`🔄 Switching to player:`, playerInfo);
       
-      // 🎯 IMPOSTA SELEZIONE MANUALE - Questo previene l'override automatico
+      // 🎯 SET MANUAL SELECTION - This prevents automatic override
       manualPlayerSelection = userId;
       console.log(`🎯 Set manualPlayerSelection to: ${manualPlayerSelection}`);
       
@@ -1147,7 +1147,7 @@ io.on('connection', (socket) => {
       };
       console.log(`🔄 Updated currentDisplayedTrack:`, currentDisplayedTrack);
       
-      // Aggiorna e broadcast
+      // Update and broadcast
       console.log(`🔄 Calling updateSessionsAndBroadcast...`);
       await updateSessionsAndBroadcast();
       console.log(`✅ updateSessionsAndBroadcast completed`);
@@ -1430,7 +1430,7 @@ function startMonitoring() {
     }
   }, 1000); // Controlla ogni 1 secondo solo per countdown
   
-  console.log('📡 Monitoraggio avviato: 10s per sessioni, 1s per countdown');
+  console.log('📡 Monitoring started: 10s for sessions, 1s for countdown');
 }
 
 function stopMonitoring() {
@@ -1505,7 +1505,7 @@ server.listen(PORT, async () => {
   connectToPlexWebSocket();
 });
 
-console.log('💾 Sistema Plex Media Control con NMAP avviato');
+console.log('💾 Plex Media Control System with NMAP started');
 console.log('📋 Configurazione:', {
   serverUrl: CONFIG.PLEX_SERVER_URL,
   discoveryMethod: 'NMAP Network Scan',

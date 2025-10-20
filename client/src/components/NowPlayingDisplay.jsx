@@ -24,7 +24,7 @@ const NowPlayingDisplay = () => {
     }
   }, [])
 
-  // Effect per aggiornare il progresso quando arrivano nuovi dati dal server
+  // Effect to update progress when new data arrives from server
   useEffect(() => {
     if (nowPlaying?.track?.viewOffset !== undefined && nowPlaying?.track?.duration > 0) {
       setInterpolatedProgress((nowPlaying.track.viewOffset / nowPlaying.track.duration) * 100)
@@ -32,7 +32,7 @@ const NowPlayingDisplay = () => {
     }
   }, [nowPlaying?.track?.viewOffset, nowPlaying?.track?.duration])
 
-  // Effect per interpolare il progresso ogni secondo quando la musica è in riproduzione
+  // Effect to interpolate progress every second when music is playing
   useEffect(() => {
     if (!nowPlaying?.isPlaying || !nowPlaying?.track?.duration) {
       return
@@ -45,7 +45,7 @@ const NowPlayingDisplay = () => {
       
       setInterpolatedProgress(prev => {
         const newProgress = prev + progressIncrement
-        // Non superare il 100% e fermarsi se siamo vicini alla fine
+        // Don't exceed 100% and stop if we're near the end
         return Math.min(newProgress, 100)
       })
       setLastUpdateTime(now)
@@ -54,34 +54,36 @@ const NowPlayingDisplay = () => {
     return () => clearInterval(interval)
   }, [nowPlaying?.isPlaying, nowPlaying?.track?.duration, lastUpdateTime])
 
-  const handleInteraction = (event) => {
-    // Previeni multiple chiamate da touch + click
-    event.preventDefault()
+  const handleInteraction = () => {
+    // Prevent multiple calls from touch + click
+    const now = Date.now()
     
-    // Previeni l'interazione se l'overlay è già visibile
+    // Prevent interaction if overlay is already visible
     if (showOverlay) {
       return
     }
     
-    // Previeni la riapertura immediata se l'overlay è stato chiuso di recente
-    const now = Date.now()
-    if (now - lastCloseTime < 500) { // 500ms di delay dopo la chiusura
+    // Prevent immediate reopening if overlay was closed recently
+    const timeSinceClose = now - lastCloseTime
+    if (now - lastCloseTime < 500) { // 500ms delay after closing
       return
     }
-    
-    setShowOverlay(true)
+
+    console.log('Interaction detected, showing overlay')
     
     // Clear existing timeout
     if (overlayTimeout) {
       clearTimeout(overlayTimeout)
     }
     
-    // Set new timeout to hide overlay - più lungo per dare tempo alle animazioni
-    const timeout = setTimeout(() => {
-      setShowOverlay(false)
-    }, 6000) // Aumentato da 4 a 6 secondi
+    setShowOverlay(true)
     
-    setOverlayTimeout(timeout)
+    // Set new timeout to hide overlay - longer to give time for animations
+    const newTimeout = setTimeout(() => {
+      setShowOverlay(false)
+    }, 6000) // Increased from 4 to 6 seconds
+    
+    setOverlayTimeout(newTimeout)
   }
 
   const handleOverlayInteraction = () => {
@@ -90,24 +92,24 @@ const NowPlayingDisplay = () => {
       clearTimeout(overlayTimeout)
     }
     
-    const timeout = setTimeout(() => {
+    const newTimeout = setTimeout(() => {
       setShowOverlay(false)
-    }, 6000) // Aumentato anche qui
+    }, 6000) // Increased here too
     
-    setOverlayTimeout(timeout)
+    setOverlayTimeout(newTimeout)
   }
 
   const handleCloseOverlay = () => {
-    // Chiudi immediatamente l'overlay quando si clicca fuori
+    // Close overlay immediately when clicking outside
     setShowOverlay(false)
     
-    // Pulisci il timeout esistente
+    // Clean up existing timeout
     if (overlayTimeout) {
       clearTimeout(overlayTimeout)
       setOverlayTimeout(null)
     }
     
-    // Aggiorna il timestamp di chiusura per prevenire riapertura immediata
+    // Update close timestamp to prevent immediate reopening
     setLastCloseTime(Date.now())
   }
 
@@ -127,9 +129,9 @@ const NowPlayingDisplay = () => {
         <div className="connection-status">
           <div className="spinner"></div>
           <p>
-            {connectionStatus === 'connecting' && 'Connessione in corso...'}
-            {connectionStatus === 'disconnected' && 'Connessione persa'}
-            {connectionStatus === 'error' && 'Errore di connessione'}
+            {connectionStatus === 'connecting' && 'Connecting...'}
+            {connectionStatus === 'disconnected' && 'Connection lost'}
+            {connectionStatus === 'error' && 'Connection error'}
           </p>
         </div>
       </div>
@@ -142,7 +144,7 @@ const NowPlayingDisplay = () => {
       <div className="now-playing-container">
         <div className="connection-status">
           <div className="spinner"></div>
-          <p>Caricamento dati...</p>
+          <p>Loading data...</p>
         </div>
       </div>
     )

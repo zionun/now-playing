@@ -26,7 +26,7 @@ export const WebSocketProvider = ({ children }) => {
     // In development, connect directly to the server port
     // In production, use the same origin as the served content
     const serverUrl = process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:3001'
-    console.log('Tentativo di connessione WebSocket a:', serverUrl)
+    console.log('WebSocket connection attempt to:', serverUrl)
     
     const socketConnection = io(serverUrl, {
       transports: ['websocket', 'polling'],
@@ -58,16 +58,16 @@ export const WebSocketProvider = ({ children }) => {
 
     // Listen for now playing updates
     socketConnection.on('nowPlaying', (data) => {
-      console.log('🔍 RICEVUTO EVENTO nowPlaying dal server:', data);
+      console.log('🔍 RECEIVED nowPlaying event from server:', data);
       
       // Fallback di sicurezza se il server invia null o dati malformati
       if (!data || typeof data !== 'object') {
-        console.warn('Ricevuti dati nowPlaying non validi:', data);
+        console.warn('Received invalid nowPlaying data:', data);
         const fallbackData = {
           isPlaying: false,
           track: {
-            title: "Connessione in corso...",
-            artist: "Sistema",
+            title: "Connecting...",
+            artist: "System",
             album: "",
             isLastFm: false
           },
@@ -80,13 +80,13 @@ export const WebSocketProvider = ({ children }) => {
 
       // Se i dati sono già nel formato corretto (con track object), usali direttamente
       if (data.track && typeof data.track === 'object') {
-        console.log('🔍 Dati già nel formato corretto:', data);
+        console.log('🔍 Data already in correct format:', data);
         setNowPlaying(data);
         return;
       }
 
       // Altrimenti, converti i dati del server nel formato che il client si aspetta (legacy)
-      console.log('Valori chiave per track:', {
+      console.log('Key track values:', {
         hasTrack: data.hasTrack,
         trackTitle: data.trackTitle,
         trackArtist: data.trackArtist,
@@ -101,7 +101,7 @@ export const WebSocketProvider = ({ children }) => {
         pauseTimeRemaining: data.pauseTimeRemaining || 0,
         track: data.trackTitle ? {
           title: data.trackTitle,
-          artist: data.trackArtist || 'Artista sconosciuto',
+          artist: data.trackArtist || 'Unknown artist',
           album: data.trackAlbum || '',
           thumb: data.trackThumb || '',
           parentThumb: data.trackParentThumb || '',
@@ -116,7 +116,7 @@ export const WebSocketProvider = ({ children }) => {
         multiplePlayers: data.multiplePlayers || false
       };
 
-      console.log('🔍 Dati nowPlaying formattati (LEGACY):', formattedData);
+      console.log('🔍 Formatted nowPlaying data (LEGACY):', formattedData);
       setNowPlaying(formattedData);
     })
 

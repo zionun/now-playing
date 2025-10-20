@@ -9,25 +9,25 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
 
   const handleControlClick = (action, event) => {
     event.stopPropagation()
-    event.preventDefault() // Previeni il comportamento di default
-    if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
+    event.preventDefault() // Prevent default behavior
+    if (!hasControls) return // Do nothing if controls are disabled
     
-    // Evita la duplicazione di eventi touch/click
+    // Avoid touch/click event duplication
     const now = Date.now()
-    if (now - lastTouchTime < 300) return // Ignora click se c'è stato un touch negli ultimi 300ms
+    if (now - lastTouchTime < 300) return // Ignore click if there was a touch in the last 300ms
     
     sendMediaControl(action)
-    onClose() // Chiudi immediatamente l'overlay dopo aver premuto un controllo
+    onClose() // Close overlay immediately after pressing a control
   }
 
   const handleControlTouch = (action, event) => {
     event.stopPropagation()
-    event.preventDefault() // Previeni il comportamento di default
-    if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
+    event.preventDefault() // Prevent default behavior
+    if (!hasControls) return // Do nothing if controls are disabled
     
     setLastTouchTime(Date.now())
     sendMediaControl(action)
-    onClose() // Chiudi immediatamente l'overlay dopo aver premuto un controllo
+    onClose() // Close overlay immediately after pressing a control
   }
 
   const handleUserSwitch = (playerId, event) => {
@@ -35,8 +35,8 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     event.preventDefault()
     console.log('🔄 Switching to player:', playerId)
     
-    switchUser(playerId) // Usa la funzione esistente per switchare player
-    onClose() // Chiudi l'overlay dopo aver selezionato un player
+    switchUser(playerId) // Use existing function to switch player
+    onClose() // Close overlay after selecting a player
   }
 
   const handleUserSwitchTouch = (playerId, event) => {
@@ -49,27 +49,27 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     onClose()
   }
 
-  // Gestisci clic sull'overlay di sfondo per chiudere
+  // Handle click on overlay background to close
   const handleOverlayClick = (event) => {
-    // Solo se il clic è direttamente sull'overlay (non sui suoi figli)
+    // Only if click is directly on overlay (not on its children)
     if (event.target === event.currentTarget) {
-      event.stopPropagation() // Ferma la propagazione dell'evento
-      onClose() // Usa la funzione di chiusura specifica
+      event.stopPropagation() // Stop event propagation
+      onClose() // Use specific close function
     }
   }
 
-  // Gestisci touch sull'overlay di sfondo per chiudere
+  // Handle touch on overlay background to close
   const handleOverlayTouch = (event) => {
-    // Solo se il touch è direttamente sull'overlay (non sui suoi figli)
+    // Only if touch is directly on overlay (not on its children)
     if (event.target === event.currentTarget) {
       event.preventDefault()
       event.stopPropagation()
       setLastTouchTime(Date.now())
-      onClose() // Chiudi overlay con touch
+      onClose() // Close overlay with touch
     }
   }
 
-  // Previeni la propagazione del clic sui controlli
+  // Prevent click propagation on controls
   const handleContentClick = (event) => {
     event.stopPropagation()
   }
@@ -94,7 +94,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
         {/* Player switcher (if multiple players of same user) */}
         {showPlayerSwitch && (
           <div className="user-switcher">
-            <h3>Seleziona player:</h3>
+            <h3>Select player:</h3>
             <div className="user-buttons">
               {activeUsers.map(player => (
                 <button
@@ -103,7 +103,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
                   onClick={(e) => handleUserSwitch(player.id, e)}
                   onTouchStart={(e) => handleUserSwitchTouch(player.id, e)}
                 >
-                  <span>{player.name || player.title || 'Player senza nome'}</span>
+                  <span>{player.name || player.title || 'Unnamed player'}</span>
                 </button>
               ))}
             </div>

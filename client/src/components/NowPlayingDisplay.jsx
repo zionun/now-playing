@@ -238,6 +238,7 @@ const NowPlayingDisplay = () => {
         activeUsers={nowPlaying.activeUsers}
         selectedUser={nowPlaying.selectedUser}
         hasControls={nowPlaying.hasControls}
+        multiplePlayers={nowPlaying.multiplePlayers}
       />
     </div>
   )

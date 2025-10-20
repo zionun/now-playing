@@ -58,7 +58,7 @@ export const WebSocketProvider = ({ children }) => {
 
     // Listen for now playing updates
     socketConnection.on('nowPlaying', (data) => {
-      console.log('Ricevuti dati nowPlaying dal server:', data);
+      console.log('🔍 RICEVUTO EVENTO nowPlaying dal server:', data);
       
       // Fallback di sicurezza se il server invia null o dati malformati
       if (!data || typeof data !== 'object') {
@@ -80,7 +80,7 @@ export const WebSocketProvider = ({ children }) => {
 
       // Se i dati sono già nel formato corretto (con track object), usali direttamente
       if (data.track && typeof data.track === 'object') {
-        console.log('Dati già nel formato corretto:', data);
+        console.log('🔍 Dati già nel formato corretto:', data);
         setNowPlaying(data);
         return;
       }
@@ -112,11 +112,11 @@ export const WebSocketProvider = ({ children }) => {
         } : null,
         resumeTrack: data.resumeTrack || null,
         activeUsers: Array.isArray(data.activeUsers) ? data.activeUsers : [],
-        selectedUser: data.selectedUser || null
+        selectedUser: data.selectedUser || null,
+        multiplePlayers: data.multiplePlayers || false
       };
 
-      console.log('Dati nowPlaying formattati:', formattedData);
-      console.log('Track risultante:', formattedData.track);
+      console.log('🔍 Dati nowPlaying formattati (LEGACY):', formattedData);
       setNowPlaying(formattedData);
     })
 

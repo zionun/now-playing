@@ -58,6 +58,7 @@ let activePlayers = new Map(); // Map: machineIdentifier -> {sessionKey, state, 
 let currentDisplayedTrack = null; // {ratingKey, title, artist, machineIdentifier}
 let playingTracks = new Map(); // Map: ratingKey -> [{machineIdentifier, sessionKey, state, title, artist}]
 let trackPlayerHistory = new Map(); // Map: ratingKey -> machineIdentifier (ultimo player che ha suonato la traccia)
+let manualPlayerSelection = null; // ID del player selezionato manualmente dall'utente
 let playerLastActivity = new Map(); // Map: machineIdentifier -> timestamp
 
 // ⏸️ GESTIONE PAUSA E RESUME - Nuovo sistema intelligente
@@ -285,6 +286,9 @@ function analyzeActiveSessions(sessions) {
           state: track.Player.state || 'unknown',
           sessionKey: track.sessionKey,
           ratingKey: ratingKey,
+          // Aggiungi informazioni utente se disponibili
+          userTitle: track.User?.title || null,
+          userId: track.User?.id || null,
           trackInfo: {
             title: track.title || 'Titolo sconosciuto',
             artist: track.grandparentTitle || 'Artista sconosciuto',
@@ -316,7 +320,11 @@ function analyzeActiveSessions(sessions) {
         });
         
         // Logica di selezione del player primario (priorità a player controllabili in LAN)
-        if (currentDisplayedTrack && currentDisplayedTrack.ratingKey === ratingKey) {
+        if (manualPlayerSelection && machineId === manualPlayerSelection && playerInfo.state === 'playing') {
+          // 🎯 PRIORITÀ ASSOLUTA: Selezione manuale dell'utente
+          console.log(`🎯 Rispetto selezione manuale: ${playerInfo.name} (${machineId})`);
+          primaryPlayer = playerInfo;
+        } else if (!manualPlayerSelection && currentDisplayedTrack && currentDisplayedTrack.ratingKey === ratingKey) {
           // Se la traccia corrente è già visualizzata, controlla se è su un player diverso
           if (playerInfo.state === 'playing' && 
               (!primaryPlayer || currentDisplayedTrack.machineIdentifier !== machineId)) {
@@ -327,7 +335,7 @@ function analyzeActiveSessions(sessions) {
             currentDisplayedTrack.machineIdentifier = machineId;
             trackPlayerHistory.set(ratingKey, machineId);
           }
-        } else if (playerInfo.state === 'playing') {
+        } else if (!manualPlayerSelection && playerInfo.state === 'playing') {
           // Logica di priorità per player in "playing"
           const isControllable = availablePlayers.has(machineId);
           const currentIsControllable = primaryPlayer ? availablePlayers.has(primaryPlayer.machineIdentifier) : false;
@@ -374,11 +382,22 @@ function analyzeActiveSessions(sessions) {
     manualPauseState = null;
   }
   
+  // 🧹 RESET SELEZIONE MANUALE se il player selezionato non è più attivo
+  if (manualPlayerSelection && !activePlayersLocal.has(manualPlayerSelection)) {
+    console.log(`🧹 Player selezionato manualmente (${manualPlayerSelection}) non più attivo - Reset selezione manuale`);
+    manualPlayerSelection = null;
+  }
+  
   console.log(`🎵 Sessioni analizzate: ${activePlayersLocal.size} player con tracce musicali attive`);
   if (primaryPlayer) {
     const hasControls = availablePlayers.has(primaryPlayer.machineIdentifier) ? '✅' : '❌';
     console.log(`🎯 Player musicale primario: ${primaryPlayer.name} (${primaryPlayer.state}) - ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title}`);
     console.log(`🎵 Now Playing (Music): ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title} (${primaryPlayer.state}) - Controls: ${hasControls}`);
+    
+    // Log informazioni utente per debug
+    if (primaryPlayer.userTitle) {
+      console.log(`👤 Utente: ${primaryPlayer.userTitle} (ID: ${primaryPlayer.userId})`);
+    }
     
     // Log di tracce multiple se presenti
     if (playingTracks.size > 1) {
@@ -445,13 +464,15 @@ async function updateCountdownAndBroadcast() {
       activeUsers: [{
         id: manualPauseState.machineIdentifier,
         name: manualPauseState.playerInfo.name,
+        title: manualPauseState.playerInfo.name,
         state: 'paused',
         sessionKey: manualPauseState.sessionKey
       }],
       selectedUser: manualPauseState.machineIdentifier,
       isPaused: true, // Flag per indicare pausa manuale
       pauseTimeRemaining: pauseTimeRemaining,
-      hasControls: availablePlayers.has(manualPauseState.machineIdentifier)
+      hasControls: availablePlayers.has(manualPauseState.machineIdentifier),
+      multiplePlayers: false // Solo un player in pausa manuale
     };
     
     console.log(`⏱️ Countdown: ${Math.ceil(pauseTimeRemaining / 1000)}s rimanenti`);
@@ -506,22 +527,22 @@ async function updateSessionsAndBroadcast() {
         isLastFm: false
       };
       
-      nowPlayingData = {
-        isPlaying: false, // In pausa
-        track: track,
-        activeUsers: [{
-          id: manualPauseState.machineIdentifier,
-          name: manualPauseState.playerInfo.name,
-          state: 'paused',
-          sessionKey: manualPauseState.sessionKey
-        }],
-        selectedUser: manualPauseState.machineIdentifier,
-        isPaused: true, // Flag per indicare pausa manuale
-        pauseTimeRemaining: Math.max(0, 30000 - (Date.now() - manualPauseState.timestamp)),
-        hasControls: availablePlayers.has(manualPauseState.machineIdentifier)
-      };
-      
-      console.log(`⏸️ Mantenendo interfaccia per pausa manuale (${Math.ceil(nowPlayingData.pauseTimeRemaining / 1000)}s rimanenti)`);
+    nowPlayingData = {
+      isPlaying: false, // In pausa
+      track: track,
+      activeUsers: [{
+        id: manualPauseState.machineIdentifier,
+        name: manualPauseState.playerInfo.name,
+        title: manualPauseState.playerInfo.name,
+        state: 'paused',
+        sessionKey: manualPauseState.sessionKey
+      }],
+      selectedUser: manualPauseState.machineIdentifier,
+      isPaused: true, // Flag per indicare pausa manuale
+      pauseTimeRemaining: Math.max(0, 30000 - (Date.now() - manualPauseState.timestamp)),
+      hasControls: availablePlayers.has(manualPauseState.machineIdentifier),
+      multiplePlayers: false // Solo un player in pausa manuale
+    };      console.log(`⏸️ Mantenendo interfaccia per pausa manuale (${Math.ceil(nowPlayingData.pauseTimeRemaining / 1000)}s rimanenti)`);
     }
     // ⏸️ CONTROLLO SE C'È UNA PAUSA MANUALE SCADUTA
     else if (manualPauseState && !pauseTimer) {
@@ -538,6 +559,7 @@ async function updateSessionsAndBroadcast() {
         selectedUser: null,
         hasResumeOption: true, // Flag per mostrare opzione resume
         hasControls: availablePlayers.has(manualPauseState.machineIdentifier),
+        multiplePlayers: false, // Nessun player attivo
         resumeTrack: {
           title: manualPauseState.trackInfo.title,
           artist: manualPauseState.trackInfo.artist,
@@ -564,19 +586,46 @@ async function updateSessionsAndBroadcast() {
         isLastFm: false
       };
       
+      // Analizza se ci sono più utenti o più player dello stesso utente
+      const playersByUser = new Map();
+      const allPlayers = Array.from(activePlayers.values());
+      
+      // Raggruppa i player per utente
+      for (const player of allPlayers) {
+        const userKey = player.userTitle || 'unknown-user';
+        if (!playersByUser.has(userKey)) {
+          playersByUser.set(userKey, []);
+        }
+        playersByUser.get(userKey).push(player);
+      }
+      
+      // Filtra solo le sessioni dell'utente primario (quello del primary player)
+      const primaryUserKey = primaryPlayer.userTitle || 'unknown-user';
+      const sameUserPlayers = playersByUser.get(primaryUserKey) || [primaryPlayer];
+      
+      console.log(`👤 Utenti trovati: ${playersByUser.size}, Player dell'utente primario: ${sameUserPlayers.length}`);
+      console.log('🔍 Debug sameUserPlayers:', sameUserPlayers.map(p => ({ id: p.machineIdentifier, name: p.name, state: p.state })));
+      
       nowPlayingData = {
         isPlaying: true,
         isPaused: false,
         track: track,
-        activeUsers: Array.from(activePlayers.values()).map(player => ({
+        activeUsers: sameUserPlayers.map(player => ({
           id: player.machineIdentifier,
-          name: player.name,
+          name: player.name, // Nome del player, non dell'utente
+          title: player.name, // Per compatibilità
           state: player.state,
-          sessionKey: player.sessionKey
+          sessionKey: player.sessionKey,
+          userTitle: player.userTitle
         })),
         selectedUser: primaryPlayer.machineIdentifier,
-        hasControls: availablePlayers.has(primaryPlayer.machineIdentifier)
+        hasControls: availablePlayers.has(primaryPlayer.machineIdentifier),
+        multipleUsers: playersByUser.size > 1,  // Flag per sapere se ci sono più utenti
+        multiplePlayers: sameUserPlayers.length > 1  // Flag per sapere se ci sono più player dello stesso utente
       };
+      
+      console.log('🔍 Debug nowPlayingData.activeUsers:', nowPlayingData.activeUsers);
+      console.log('🔍 Debug nowPlayingData.multiplePlayers:', nowPlayingData.multiplePlayers);
     }
     else if (primaryPlayer && primaryPlayer.state === 'paused') {
       // Traccia in pausa - mostrar IdleScreen con opzione resume
@@ -592,6 +641,7 @@ async function updateSessionsAndBroadcast() {
         selectedUser: null,
         hasResumeOption: true,
         hasControls: availablePlayers.has(primaryPlayer.machineIdentifier),
+        multiplePlayers: false, // Nessun player attivo
         resumeTrack: {
           title: primaryPlayer.trackInfo.title,
           artist: primaryPlayer.trackInfo.artist,
@@ -612,7 +662,8 @@ async function updateSessionsAndBroadcast() {
         track: lastFmTrack,
         activeUsers: [],
         selectedUser: null,
-        hasControls: false // Nessun player attivo, controlli disabilitati
+        hasControls: false, // Nessun player attivo, controlli disabilitati
+        multiplePlayers: false // Nessun player attivo
       };
     }
     
@@ -1074,18 +1125,35 @@ io.on('connection', (socket) => {
   // 🔄 COMPATIBILITÀ CLIENT REACT ORIGINALE
   // Handler legacy per switchUser (compatibilità)
   socket.on('switchUser', async (userId) => {
-    console.log(`🔄 Switch legacy user: ${userId}`);
+    console.log(`🔄 RICEVUTO Switch legacy user request: ${userId}`);
+    console.log(`🔍 availablePlayers:`, Array.from(availablePlayers.keys()));
+    console.log(`🔍 activePlayers:`, Array.from(activePlayers.keys()));
+    console.log(`🔍 availablePlayers has userId: ${availablePlayers.has(userId)}`);
+    console.log(`🔍 activePlayers has userId: ${activePlayers.has(userId)}`);
+    
     if (activePlayers.has(userId)) {
       const playerInfo = activePlayers.get(userId);
+      console.log(`🔄 Switching to player:`, playerInfo);
+      
+      // 🎯 IMPOSTA SELEZIONE MANUALE - Questo previene l'override automatico
+      manualPlayerSelection = userId;
+      console.log(`🎯 Set manualPlayerSelection to: ${manualPlayerSelection}`);
+      
       currentDisplayedTrack = {
         ratingKey: playerInfo.ratingKey,
         title: playerInfo.trackInfo.title,
         artist: playerInfo.trackInfo.artist,
         machineIdentifier: userId
       };
+      console.log(`🔄 Updated currentDisplayedTrack:`, currentDisplayedTrack);
       
       // Aggiorna e broadcast
+      console.log(`🔄 Calling updateSessionsAndBroadcast...`);
       await updateSessionsAndBroadcast();
+      console.log(`✅ updateSessionsAndBroadcast completed`);
+    } else {
+      console.log(`❌ Player ${userId} not found in activePlayers`);
+      console.log(`📋 Available activePlayers:`, Array.from(activePlayers.entries()).map(([id, info]) => ({ id, title: info.trackInfo?.title })));
     }
   });
   

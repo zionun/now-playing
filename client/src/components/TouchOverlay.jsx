@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './TouchOverlay.css'
 
-const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUsers, selectedUser, hasControls = false }) => {
+const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUsers, selectedUser, hasControls = false, multiplePlayers = false }) => {
   const { sendMediaControl, switchUser } = useWebSocket()
   const [isAnimating, setIsAnimating] = useState(false)
   const [lastTouchTime, setLastTouchTime] = useState(0)
@@ -30,10 +30,23 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     onClose() // Chiudi immediatamente l'overlay dopo aver premuto un controllo
   }
 
-  const handleUserSwitch = (userId, event) => {
+  const handleUserSwitch = (playerId, event) => {
     event.stopPropagation()
-    onInteraction()
-    switchUser(userId)
+    event.preventDefault()
+    console.log('🔄 Switching to player:', playerId)
+    
+    switchUser(playerId) // Usa la funzione esistente per switchare player
+    onClose() // Chiudi l'overlay dopo aver selezionato un player
+  }
+
+  const handleUserSwitchTouch = (playerId, event) => {
+    event.stopPropagation()
+    event.preventDefault()
+    setLastTouchTime(Date.now())
+    console.log('🔄 Touch switching to player:', playerId)
+    
+    switchUser(playerId)
+    onClose()
   }
 
   // Gestisci clic sull'overlay di sfondo per chiudere
@@ -65,7 +78,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     return null
   }
 
-  const showUserSwitch = activeUsers.length > 1
+  const showPlayerSwitch = multiplePlayers && activeUsers && activeUsers.length > 1
 
   return (
     <div 
@@ -78,21 +91,19 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
         onClick={handleContentClick}
         onTouchEnd={(e) => e.stopPropagation()} // Previeni propagazione touch anche sul contenuto
       >
-        {/* User switcher (if multiple users) */}
-        {showUserSwitch && (
+        {/* Player switcher (if multiple players of same user) */}
+        {showPlayerSwitch && (
           <div className="user-switcher">
-            <h3>Seleziona utente:</h3>
+            <h3>Seleziona player:</h3>
             <div className="user-buttons">
-              {activeUsers.map(user => (
+              {activeUsers.map(player => (
                 <button
-                  key={user.id}
-                  className={`user-button ${user.id === selectedUser ? 'active' : ''}`}
-                  onClick={(e) => handleUserSwitch(user.id, e)}
+                  key={player.id}
+                  className={`user-button ${player.id === selectedUser ? 'active' : ''}`}
+                  onClick={(e) => handleUserSwitch(player.id, e)}
+                  onTouchStart={(e) => handleUserSwitchTouch(player.id, e)}
                 >
-                  {user.thumb && (
-                    <img src={user.thumb} alt={user.title} className="user-avatar" />
-                  )}
-                  <span>{user.title}</span>
+                  <span>{player.name || player.title || 'Player senza nome'}</span>
                 </button>
               ))}
             </div>

@@ -10,6 +10,7 @@ const NowPlayingDisplay = () => {
   const [overlayTimeout, setOverlayTimeout] = useState(null)
   const [interpolatedProgress, setInterpolatedProgress] = useState(0)
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
+  const [lastCloseTime, setLastCloseTime] = useState(0)
 
   // Apply kiosk mode styles (no scroll) for the main display
   useEffect(() => {
@@ -62,6 +63,12 @@ const NowPlayingDisplay = () => {
       return
     }
     
+    // Previeni la riapertura immediata se l'overlay è stato chiuso di recente
+    const now = Date.now()
+    if (now - lastCloseTime < 500) { // 500ms di delay dopo la chiusura
+      return
+    }
+    
     setShowOverlay(true)
     
     // Clear existing timeout
@@ -99,6 +106,9 @@ const NowPlayingDisplay = () => {
       clearTimeout(overlayTimeout)
       setOverlayTimeout(null)
     }
+    
+    // Aggiorna il timestamp di chiusura per prevenire riapertura immediata
+    setLastCloseTime(Date.now())
   }
 
   // Clean up timeout on unmount

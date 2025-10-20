@@ -16,8 +16,8 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     const now = Date.now()
     if (now - lastTouchTime < 300) return // Ignora click se c'è stato un touch negli ultimi 300ms
     
-    onInteraction()
     sendMediaControl(action)
+    onClose() // Chiudi immediatamente l'overlay dopo aver premuto un controllo
   }
 
   const handleControlTouch = (action, event) => {
@@ -26,8 +26,8 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
     
     setLastTouchTime(Date.now())
-    onInteraction()
     sendMediaControl(action)
+    onClose() // Chiudi immediatamente l'overlay dopo aver premuto un controllo
   }
 
   const handleUserSwitch = (userId, event) => {

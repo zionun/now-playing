@@ -164,7 +164,7 @@
 .media-controls {
   display: flex;
   align-items: center;
-  gap: 2.2rem;
+  gap: 2rem;
   animation: slideInControls var(--transition-medium) ease-out;
   animation-delay: 0.2s;
   animation-fill-mode: both;
@@ -182,9 +182,9 @@
 }
 
 .control-button {
-  width: 68px;
-  height: 68px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
   border: none;
   color: var(--text-primary);
@@ -271,9 +271,9 @@
 }
 
 .control-button.play-pause {
-  width: 96px;
-  height: 96px;
-  border-radius: 18px;
+  width: 80px;
+  height: 80px;
+  background: var(--accent-color);
   /* Stato iniziale semplificato */
   opacity: 0;
   transform: scale(0.7);
@@ -301,13 +301,13 @@
 }
 
 .control-button svg {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
 }
 
 .control-button.play-pause svg {
-    width: 46px;
-    height: 46px;
+  width: 32px;
+  height: 32px;
 }
 
 /* Overlay Track Info con animazione */
@@ -373,36 +373,14 @@
   }
   
   .control-button {
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
   }
   
   .control-button.play-pause {
-    width: 82px;
-    height: 82px;
+    width: 70px;
+    height: 70px;
   }
-
-/* Small / square display tweaks (HyperPixel 4.0 Square) */
-@media (max-width: 480px), (max-height: 480px), (aspect-ratio: 1/1) {
-  .media-controls {
-    gap: 1.6rem;
-  }
-
-  .control-button {
-    width: 84px;
-    height: 84px;
-    border-radius: 16px;
-  }
-
-  .control-button.play-pause {
-    width: 110px;
-    height: 110px;
-    border-radius: 18px;
-  }
-
-  .control-button svg { width: 36px; height: 36px; }
-  .control-button.play-pause svg { width: 60px; height: 60px; }
-}
   
   .control-button svg {
     width: 20px;

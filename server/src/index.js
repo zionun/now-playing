@@ -61,7 +61,7 @@ let trackPlayerHistory = new Map(); // Map: ratingKey -> machineIdentifier (ulti
 let manualPlayerSelection = null; // ID del player selezionato manualmente dall'utente
 let playerLastActivity = new Map(); // Map: machineIdentifier -> timestamp
 
-// ⏸️ GESTIONE PAUSA E RESUME - Nuovo sistema intelligente
+// ⏸️ PAUSE AND RESUME MANAGEMENT - New intelligent system
 let manualPauseState = null; // {ratingKey, machineIdentifier, sessionKey, timestamp, trackInfo, playerInfo}
 let pauseTimer = null; // Timer per 30 secondi dopo pausa manuale
 let lastUserAction = null; // Traccia l'ultima azione dell'utente {action, timestamp, machineIdentifier}
@@ -76,7 +76,7 @@ async function nmapDiscovery(baseIP) {
     const networkParts = baseIP.split('.');
     const networkBase = `${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24`;
     
-    console.log(`🗺️  Avvio nmap discovery su rete ${networkBase}...`);
+    console.log(`🗺️  Starting nmap discovery on network ${networkBase}...`);
     
     const { stdout } = await execAsync(`nmap -sn ${networkBase}`);
     const lines = stdout.split('\n');
@@ -101,12 +101,12 @@ async function nmapDiscovery(baseIP) {
 // 📋 DISCOVERY PLEX PLAYERS CON NMAP
 async function discoverAllPlexPlayers(baseIP) {
   try {
-    console.log('🔍 Avvio discovery completo dei player Plex...');
+    console.log('🔍 Starting complete Plex player discovery...');
     
     // Ottieni lista di IP attivi dalla rete usando nmap
     const activeIPs = await nmapDiscovery(baseIP);
     
-    console.log(`🎯 Testing ${activeIPs.length} IP per player Plex...`);
+    console.log(`🎯 Testing ${activeIPs.length} IPs for Plex players...`);
     
     const foundPlayers = [];
     
@@ -394,7 +394,7 @@ function analyzeActiveSessions(sessions) {
     console.log(`🎯 Primary music player: ${primaryPlayer.name} (${primaryPlayer.state}) - ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title}`);
     console.log(`🎵 Now Playing (Music): ${primaryPlayer.trackInfo.artist} - ${primaryPlayer.trackInfo.title} (${primaryPlayer.state}) - Controls: ${hasControls}`);
     
-    // Log informazioni utente per debug
+    // Log user information for debug
     if (primaryPlayer.userTitle) {
       console.log(`👤 User: ${primaryPlayer.userTitle} (ID: ${primaryPlayer.userId})`);
     }
@@ -490,7 +490,7 @@ async function updateCountdownAndBroadcast() {
 // 📋 AGGIORNAMENTO SESSIONI E BROADCAST COMPATIBILE
 async function updateSessionsAndBroadcast() {
   try {
-    console.log('🔄 Avvio updateSessionsAndBroadcast...');
+    console.log('🔄 Starting updateSessionsAndBroadcast...');
     const sessions = await getActiveSessions();
     console.log('📊 Sessions received:', sessions ? 'OK' : 'NULL');
     
@@ -541,13 +541,13 @@ async function updateSessionsAndBroadcast() {
       isPaused: true, // Flag per indicare pausa manuale
       pauseTimeRemaining: Math.max(0, 30000 - (Date.now() - manualPauseState.timestamp)),
       hasControls: availablePlayers.has(manualPauseState.machineIdentifier),
-      multiplePlayers: false // Solo un player in pausa manuale
-    };      console.log(`⏸️ Mantenendo interfaccia per pausa manuale (${Math.ceil(nowPlayingData.pauseTimeRemaining / 1000)}s rimanenti)`);
+      multiplePlayers: false // Only one player in manual pause
+    };      console.log(`⏸️ Maintaining interface for manual pause (${Math.ceil(nowPlayingData.pauseTimeRemaining / 1000)}s remaining)`);
     }
-    // ⏸️ CONTROLLO SE C'È UNA PAUSA MANUALE SCADUTA
+    // ⏸️ CHECK IF THERE'S AN EXPIRED MANUAL PAUSE
     else if (manualPauseState && !pauseTimer) {
-      // Pausa manuale scaduta - mostra idle con opzione resume
-      console.log(`⏰ Pausa manuale scaduta - Mostrando idle con resume`);
+      // Manual pause expired - show idle with resume option
+      console.log(`⏰ Manual pause expired - Showing idle with resume`);
       
       const lastFmTrack = await getLastFmTrack();
       
@@ -629,7 +629,7 @@ async function updateSessionsAndBroadcast() {
     }
     else if (primaryPlayer && primaryPlayer.state === 'paused') {
       // Traccia in pausa - mostrar IdleScreen con opzione resume
-      console.log(`⏸️ Traccia in pausa esistente - Mostrando idle con resume`);
+      console.log(`⏸️ Existing paused track - Showing idle with resume`);
       
       const lastFmTrack = await getLastFmTrack();
       
@@ -687,7 +687,7 @@ async function updateSessionsAndBroadcast() {
   }
 }
 
-// 📋 CONTROLLO MEDIA
+// 📋 MEDIA CONTROL
 async function mediaControl(command, sessionKey = null, targetMachineId = null) {
   try {
     let targetIP = null;

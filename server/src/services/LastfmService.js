@@ -43,7 +43,6 @@ export class LastfmService {
   async getTopAlbums(period = '7day', limit = 12) {
     const config = this.configService.getLastfmConfig()
     
-    // Usa user.gettopalbums con periodo 7day per gli album più ascoltati dell'ultima settimana
     const params = {
       method: 'user.gettopalbums',
       user: config.username,
@@ -56,7 +55,7 @@ export class LastfmService {
     const response = await axios.get(this.baseUrl, { params })
     const topAlbums = response.data.topalbums?.album || []
     
-    // Gli album sono già ordinati per playcount dal server Last.fm
+    // Albums are already sorted by playcount from Last.fm server
     const formattedAlbums = topAlbums
       .slice(0, limit)
       .map((album, index) => ({
@@ -67,12 +66,70 @@ export class LastfmService {
         image: album.image || [],
         playcount: album.playcount || '0',
         url: album.url || '',
-        rank: (index + 1).toString() // Rank basato sulla posizione nell'array
+        rank: (index + 1).toString() // Rank based on position in array
       }))
     
-    console.log('Top albums (7day) from Last.fm:', formattedAlbums.map(a => `${a.rank}. ${a.artist.name} - ${a.name} (${a.playcount} plays)`))
-    
     return formattedAlbums
+  }
+
+  /**
+   * Gets top albums by progressively expanding time periods to fill up to the target limit.
+   * This function implements a cascading approach to ensure we always have enough albums:
+   * 
+   * 1. First, fetch top albums from the last 7 days
+   * 2. If we don't have enough albums (< target limit), fetch from 1 month and append unique ones
+   * 3. Continue with 3 months, 6 months, 12 months, and overall periods until we reach the target
+   * 4. Albums are added in the order returned by each API call, maintaining Last.fm's relevance ranking
+   * 5. Duplicates are filtered out based on artist name + album name combination
+   * 
+   * @param {number} targetLimit - Target number of albums to return (default: 12)
+   * @returns {Array} Array of formatted album objects, up to targetLimit length
+   */
+  async getTopAlbumsWithFallback(targetLimit = 12) {
+    const periods = ['7day', '1month', '3month', '6month', '12month', 'overall']
+    let allAlbums = []
+    const seenAlbums = new Set() // Track unique album+artist combinations
+    
+    console.log(`Starting progressive album fetch to reach ${targetLimit} albums...`)
+    
+    for (const period of periods) {
+      if (allAlbums.length >= targetLimit) {
+        console.log(`Target of ${targetLimit} albums reached, stopping`)
+        break
+      }
+      
+      const remainingSlots = targetLimit - allAlbums.length
+      console.log(`Fetching albums for period: ${period} (need ${remainingSlots} more albums)`)
+      
+      try {
+        const periodAlbums = await this.getTopAlbums(period, 50) // Fetch more to increase chances of finding unique ones
+        let addedFromThisPeriod = 0
+        
+        for (const album of periodAlbums) {
+          if (allAlbums.length >= targetLimit) break
+          
+          const albumKey = `${album.artist.name}-${album.name}`.toLowerCase()
+          
+          if (!seenAlbums.has(albumKey)) {
+            seenAlbums.add(albumKey)
+            allAlbums.push(album)
+            addedFromThisPeriod++
+          }
+        }
+        
+        console.log(`Added ${addedFromThisPeriod} unique albums from ${period} period (total: ${allAlbums.length})`)
+        
+      } catch (error) {
+        console.error(`Error fetching albums for period ${period}:`, error.message)
+        // Continue with next period even if this one fails
+      }
+    }
+    
+    const finalAlbums = allAlbums.slice(0, targetLimit)
+    console.log(`Final album collection: ${finalAlbums.length} albums`)
+    console.log('Albums:', finalAlbums.map((a, i) => `${i + 1}. ${a.artist.name} - ${a.name}`))
+    
+    return finalAlbums
   }
 
   async getIdleScreenData() {
@@ -80,13 +137,13 @@ export class LastfmService {
       const [userInfo, recentTrack, topAlbums] = await Promise.all([
         this.getUserInfo(),
         this.getRecentTracks(1),
-        this.getTopAlbums('7day', 12) // Album più ascoltati degli ultimi 7 giorni ordinati per playcount
+        this.getTopAlbumsWithFallback(12) // Use progressive fallback to ensure we get 12 albums
       ])
 
       return {
         scrobbles: parseInt(userInfo.playcount || 0),
         lastTrack: Array.isArray(recentTrack) ? recentTrack[0] : recentTrack,
-        topAlbums: topAlbums // Ordinati per playcount dalla API Last.fm
+        topAlbums: topAlbums // Albums from cascading time periods, ordered by relevance
       }
     } catch (error) {
       console.error('Error fetching Last.fm data:', error)

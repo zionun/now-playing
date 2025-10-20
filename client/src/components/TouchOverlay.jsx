@@ -5,10 +5,27 @@ import './TouchOverlay.css'
 const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUsers, selectedUser, hasControls = false }) => {
   const { sendMediaControl, switchUser } = useWebSocket()
   const [isAnimating, setIsAnimating] = useState(false)
+  const [lastTouchTime, setLastTouchTime] = useState(0)
 
   const handleControlClick = (action, event) => {
     event.stopPropagation()
+    event.preventDefault() // Previeni il comportamento di default
     if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
+    
+    // Evita la duplicazione di eventi touch/click
+    const now = Date.now()
+    if (now - lastTouchTime < 300) return // Ignora click se c'è stato un touch negli ultimi 300ms
+    
+    onInteraction()
+    sendMediaControl(action)
+  }
+
+  const handleControlTouch = (action, event) => {
+    event.stopPropagation()
+    event.preventDefault() // Previeni il comportamento di default
+    if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
+    
+    setLastTouchTime(Date.now())
     onInteraction()
     sendMediaControl(action)
   }
@@ -28,6 +45,17 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     }
   }
 
+  // Gestisci touch sull'overlay di sfondo per chiudere
+  const handleOverlayTouch = (event) => {
+    // Solo se il touch è direttamente sull'overlay (non sui suoi figli)
+    if (event.target === event.currentTarget) {
+      event.preventDefault()
+      event.stopPropagation()
+      setLastTouchTime(Date.now())
+      onClose() // Chiudi overlay con touch
+    }
+  }
+
   // Previeni la propagazione del clic sui controlli
   const handleContentClick = (event) => {
     event.stopPropagation()
@@ -43,11 +71,12 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
     <div 
       className="touch-overlay"
       onClick={handleOverlayClick}
-      onTouchStart={(e) => e.stopPropagation()} // Previeni la propagazione anche del touch
+      onTouchEnd={handleOverlayTouch}
     >
       <div 
         className="overlay-content"
         onClick={handleContentClick}
+        onTouchEnd={(e) => e.stopPropagation()} // Previeni propagazione touch anche sul contenuto
       >
         {/* User switcher (if multiple users) */}
         {showUserSwitch && (
@@ -75,6 +104,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
           <button 
             className={`control-button ${!hasControls ? 'disabled' : ''}`}
             onClick={(e) => handleControlClick('previous', e)}
+            onTouchStart={(e) => handleControlTouch('previous', e)}
             aria-label="Previous track"
             disabled={!hasControls}
           >
@@ -87,6 +117,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
           <button 
             className={`control-button play-pause ${!hasControls ? 'disabled' : ''}`}
             onClick={(e) => handleControlClick(isPlaying ? 'pause' : 'play', e)}
+            onTouchStart={(e) => handleControlTouch(isPlaying ? 'pause' : 'play', e)}
             aria-label={isPlaying ? "Pause" : "Play"}
             disabled={!hasControls}
           >
@@ -103,6 +134,7 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
           <button 
             className={`control-button ${!hasControls ? 'disabled' : ''}`}
             onClick={(e) => handleControlClick('next', e)}
+            onTouchStart={(e) => handleControlTouch('next', e)}
             aria-label="Next track"
             disabled={!hasControls}
           >

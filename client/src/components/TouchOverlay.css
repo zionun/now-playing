@@ -199,6 +199,12 @@
   transform: scale(0.8);
   /* Animazione veloce e leggera */
   animation: buttonFadeIn 0.3s ease-out forwards;
+  /* Ottimizzazioni per touch */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
 /* Ritardi minimi per Raspberry Pi */

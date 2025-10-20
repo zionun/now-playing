@@ -7,6 +7,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
   const [lastfmData, setLastfmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lastTouchTime, setLastTouchTime] = useState(0)
 
   useEffect(() => {
     // Carica sempre i dati Last.fm per la griglia
@@ -41,7 +42,17 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
 
   const handleResume = (event) => {
     event.stopPropagation() // Previene il trigger di onInteraction
+    event.preventDefault() // Previeni il comportamento di default
     if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
+    
+    // Se è un evento click, controlla se c'è stato un touch recente
+    if (event.type === 'click') {
+      const now = Date.now()
+      if (now - lastTouchTime < 300) return // Ignora click se c'è stato un touch negli ultimi 300ms
+    } else if (event.type === 'touchstart') {
+      setLastTouchTime(Date.now())
+    }
+    
     console.log('handleResume clicked', { socket: !!socket, connected: socket?.connected })
     if (socket && socket.connected) {
       console.log('Richiesta resume da pausa manuale')

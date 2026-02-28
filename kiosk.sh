@@ -13,6 +13,7 @@ xset s noblank
 
 # Launch Chromium in kiosk mode
 chromium \
+  --user-data-dir=/tmp/chromium-kiosk \
   --no-sandbox \
   --disable-infobars \
   --disable-session-crashed-bubble \

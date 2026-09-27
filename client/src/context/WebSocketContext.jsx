@@ -170,6 +170,9 @@ export const WebSocketProvider = ({ children }) => {
   // aspettare il prossimo evento del socket.
   const markAuthenticated = () => setAuthRequired(false)
 
+  // Chiamato dopo "Disconnetti Plex": la home deve tornare subito al login
+  const requireLogin = () => setAuthRequired(true)
+
   const value = {
     socket,
     nowPlaying,
@@ -178,7 +181,8 @@ export const WebSocketProvider = ({ children }) => {
     switchUser,
     authRequired,
     authChecked,
-    markAuthenticated
+    markAuthenticated,
+    requireLogin
   }
 
   return (

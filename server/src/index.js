@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import { ConfigService } from './services/ConfigService.js';
 import { LastfmService } from './services/LastfmService.js';
 import { PlexAuthService } from './services/PlexAuthService.js';
+import { LastfmLinkService } from './services/LastfmLinkService.js';
 import lastfmRouter, { setLastfmService } from './routes/lastfm.js';
 import configRouter, { setConfigService } from './routes/config.js';
 import authRouter, { setAuthServices } from './routes/auth.js';
@@ -30,6 +31,7 @@ const appConfig = configService.getConfig();
 // 📋 SERVICES INITIALIZATION
 const lastfmService = new LastfmService(configService);
 const plexAuthService = new PlexAuthService(configService);
+const lastfmLinkService = new LastfmLinkService(configService);
 
 // 📋 ADVANCED CONFIGURATION - Main server with multi-player functionality
 // Built from (priority) env vars > config file, with no hardcoded fallback
@@ -51,7 +53,7 @@ function buildConfig(currentAppConfig) {
     // Configurazione Last.fm
     LASTFM: {
       username: currentAppConfig.lastfm?.username || '',
-      apiKey: currentAppConfig.lastfm?.apiKey || '',
+      apiKey: currentAppConfig.lastfm?.apiKey || process.env.LASTFM_API_KEY || '',
       apiSecret: currentAppConfig.lastfm?.apiSecret || '',
       sessionKey: currentAppConfig.lastfm?.sessionKey || ''
     }
@@ -935,7 +937,7 @@ setLastfmService(lastfmService);
 app.use('/api/lastfm', lastfmRouter);
 setConfigService(configService, reloadConfigFromDisk);
 app.use('/api/config', configRouter);
-setAuthServices(configService, plexAuthService, reloadConfigFromDisk);
+setAuthServices(configService, plexAuthService, reloadConfigFromDisk, lastfmLinkService);
 app.use('/api/auth', authRouter);
 
 // Test di connessione usato dal pannello /config prima di salvare

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useWebSocket } from '../context/WebSocketContext'
 import './ConfigurationPanel.css'
 
 const ConfigurationPanel = () => {
   const navigate = useNavigate()
+  const { requireLogin } = useWebSocket()
   
   // Enable scrolling for config page
   useEffect(() => {
@@ -163,8 +165,9 @@ const ConfigurationPanel = () => {
       })
 
       if (response.ok) {
-        setSuccess('Plex disconnesso. Torna alla home per rifare il login con il QR code.')
-        setFormData(prev => ({ ...prev, plex: { ...prev.plex, token: '' } }))
+        // Senza Plex l'app non è utilizzabile: torna subito al login con QR
+        requireLogin()
+        navigate('/')
       } else {
         const error = await response.json()
         setError(`Errore nella disconnessione: ${error.error}`)

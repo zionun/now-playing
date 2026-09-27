@@ -151,6 +151,29 @@ const ConfigurationPanel = () => {
     }
   }
 
+  const disconnectPlex = async () => {
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+
+      if (response.ok) {
+        setSuccess('Plex disconnesso. Torna alla home per rifare il login con il QR code.')
+        setFormData(prev => ({ ...prev, plex: { ...prev.plex, token: '' } }))
+      } else {
+        const error = await response.json()
+        setError(`Errore nella disconnessione: ${error.error}`)
+      }
+    } catch (err) {
+      setError('Errore nella disconnessione da Plex')
+    }
+  }
+
   const testLastfmConnection = async () => {
     setError('')
     setSuccess('')
@@ -322,6 +345,12 @@ const ConfigurationPanel = () => {
           <button type="button" onClick={testPlexConnection} className="btn btn-test">
             Testa connessione Plex
           </button>
+
+          {config?.plex?.token && (
+            <button type="button" onClick={disconnectPlex} className="btn btn-secondary">
+              Disconnetti Plex (rifai il login con QR code)
+            </button>
+          )}
         </section>
 
         {/* Last.fm Configuration */}

@@ -20,6 +20,21 @@ export const WebSocketProvider = ({ children }) => {
     selectedUser: null
   })
   const [connectionStatus, setConnectionStatus] = useState('connecting')
+  // Plex non è (ancora) configurato o il suo token non è più valido: il
+  // client deve mostrare la schermata di login invece dell'interfaccia
+  // normale. Controllato subito via HTTP (authChecked evita un flash
+  // dell'interfaccia sbagliata) e aggiornato dal socket se cambia a runtime
+  // (es. token revocato mentre l'app è aperta).
+  const [authRequired, setAuthRequired] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/state')
+      .then(res => res.json())
+      .then(data => setAuthRequired(!data.configured))
+      .catch(() => {}) // il socket coprirà comunque lo stato non configurato
+      .finally(() => setAuthChecked(true))
+  }, [])
 
   useEffect(() => {
     // Connect to WebSocket server with more robust settings
@@ -124,6 +139,12 @@ export const WebSocketProvider = ({ children }) => {
       console.error('WebSocket error:', error)
     })
 
+    // Plex non configurato, oppure il token è stato revocato/è scaduto
+    socketConnection.on('authRequired', () => {
+      console.log('🔑 Login Plex richiesto')
+      setAuthRequired(true)
+    })
+
     setSocket(socketConnection)
 
     // Cleanup on unmount
@@ -144,12 +165,20 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
+  // Chiamato dalla schermata di login appena il server conferma che Plex è
+  // stato configurato, per tornare subito all'interfaccia normale senza
+  // aspettare il prossimo evento del socket.
+  const markAuthenticated = () => setAuthRequired(false)
+
   const value = {
     socket,
     nowPlaying,
     connectionStatus,
     sendMediaControl,
-    switchUser
+    switchUser,
+    authRequired,
+    authChecked,
+    markAuthenticated
   }
 
   return (

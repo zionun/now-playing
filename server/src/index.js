@@ -12,8 +12,10 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { ConfigService } from './services/ConfigService.js';
 import { LastfmService } from './services/LastfmService.js';
+import { PlexAuthService } from './services/PlexAuthService.js';
 import lastfmRouter, { setLastfmService } from './routes/lastfm.js';
 import configRouter, { setConfigService } from './routes/config.js';
+import authRouter, { setAuthServices } from './routes/auth.js';
 
 dotenv.config();
 
@@ -27,6 +29,7 @@ const appConfig = configService.getConfig();
 
 // 📋 SERVICES INITIALIZATION
 const lastfmService = new LastfmService(configService);
+const plexAuthService = new PlexAuthService(configService);
 
 // 📋 ADVANCED CONFIGURATION - Main server with multi-player functionality
 // Built from (priority) env vars > config file, with no hardcoded fallback
@@ -70,6 +73,8 @@ async function reloadConfigFromDisk() {
   activePlayers.clear();
   playerIPCache.clear();
 
+  tokenInvalidHandled = false; // un nuovo login/config è stato appena salvato
+
   console.log('🔄 Configurazione ricaricata:', {
     serverUrl: CONFIG.PLEX_SERVER_URL || '(non configurato)',
     hasToken: !!CONFIG.PLEX_TOKEN
@@ -79,6 +84,26 @@ async function reloadConfigFromDisk() {
     connectToPlexWebSocket();
     await updateSessionsAndBroadcast();
   }
+}
+
+// 📋 GESTIONE TOKEN REVOCATO/SCADUTO - Se Plex risponde 401, il token non è
+// più valido (revocato dall'utente o scaduto): torniamo automaticamente alla
+// schermata di login invece di continuare a fallire in silenzio.
+let tokenInvalidHandled = false;
+async function handleInvalidPlexToken() {
+  if (tokenInvalidHandled) return; // già gestito, non ripetere a ogni polling
+  tokenInvalidHandled = true;
+
+  console.log('⚠️  Token Plex non più valido (401) - richiesto un nuovo login');
+  await configService.clearPlexToken();
+  CONFIG = buildConfig(configService.getConfig());
+
+  if (plexWebSocket) {
+    plexWebSocket.close();
+    plexWebSocket = null;
+  }
+
+  safeEmit('authRequired', { reason: 'token_invalid' });
 }
 
 // Cache per l'ultima traccia Last.fm (fallback quando non c'è nulla in
@@ -205,12 +230,19 @@ async function getActiveSessions() {
       headers: {
         'X-Plex-Token': CONFIG.PLEX_TOKEN,
         'Accept': 'application/json'
-      }
+      },
+      // Senza timeout, un server Plex irraggiungibile (IP sbagliato, rete
+      // giù) blocca questa chiamata per minuti; il polling ogni 10s intanto
+      // continua ad accodarne altre senza che nessuna finisca mai.
+      timeout: 8000
     });
     
     return response.data;
   } catch (error) {
     console.error('❌ Errore recupero sessioni:', error.message);
+    if (error.response?.status === 401) {
+      await handleInvalidPlexToken();
+    }
     return null;
   }
 }
@@ -903,6 +935,8 @@ setLastfmService(lastfmService);
 app.use('/api/lastfm', lastfmRouter);
 setConfigService(configService, reloadConfigFromDisk);
 app.use('/api/config', configRouter);
+setAuthServices(configService, plexAuthService, reloadConfigFromDisk);
+app.use('/api/auth', authRouter);
 
 // Test di connessione usato dal pannello /config prima di salvare
 app.post('/api/plex/test-connection', async (req, res) => {
@@ -967,6 +1001,12 @@ io.on('connection', (socket) => {
     console.error(`❌ Errore socket ${socket.id}:`, error.message);
   });
   
+  // Se Plex non è (ancora) configurato, il client deve mostrare subito la
+  // schermata di login invece della grafica "idle" di Last.fm.
+  if (!CONFIG.PLEX_TOKEN || !CONFIG.PLEX_SERVER_URL) {
+    socket.emit('authRequired', { reason: 'not_configured' });
+  }
+
   // Invia immediatamente lo stato al nuovo client
   console.log('📨 Invio stato iniziale al nuovo client...');
   updateSessionsAndBroadcast();
@@ -1518,14 +1558,20 @@ let countdownInterval = null;
 
 function startMonitoring() {
   console.log('📡 Avvio monitoraggio sessioni avanzato (solo contenuti musicali)...');
-  
-  // Monitoraggio normale ogni 10 secondi
+
+  // Monitoraggio normale ogni 10 secondi. La guardia evita che i cicli si
+  // accumulino se una chiamata a Plex è più lenta dell'intervallo stesso.
+  let sessionsCheckInFlight = false;
   monitoringInterval = setInterval(async () => {
+    if (sessionsCheckInFlight) return;
+    sessionsCheckInFlight = true;
     try {
       // Usa la logica completa che gestisce correttamente la pausa manuale
       await updateSessionsAndBroadcast();
     } catch (error) {
       console.error('❌ Errore monitoraggio:', error.message);
+    } finally {
+      sessionsCheckInFlight = false;
     }
   }, 10000); // Controlla ogni 10 secondi per sessioni Plex
   

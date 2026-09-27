@@ -30,6 +30,7 @@ export class ConfigService {
         url: '',
         port: 32400,
         token: '',
+        clientIdentifier: '', // identificativo stabile per il login PIN/QR
         preferredUser: null // null means show any user's music
       },
       lastfm: {
@@ -98,6 +99,24 @@ export class ConfigService {
       }
     }
     return cleaned
+  }
+
+  // Usati dal flusso di login Plex (PIN/QR): scrivono direttamente il campo,
+  // a differenza di updateConfig() non trattano una stringa vuota come "non
+  // modificare" perché qui serve poter azzerare davvero il token.
+  async setPlexClientIdentifier(clientIdentifier) {
+    this.config.plex = { ...this.config.plex, clientIdentifier }
+    await this.saveConfig()
+  }
+
+  async setPlexAuth({ url, port, token }) {
+    this.config.plex = { ...this.config.plex, url, port: port || 32400, token }
+    await this.saveConfig()
+  }
+
+  async clearPlexToken() {
+    this.config.plex = { ...this.config.plex, token: '' }
+    await this.saveConfig()
   }
 
   async verifyConfigPassword(password) {

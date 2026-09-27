@@ -73,9 +73,31 @@ export class ConfigService {
       updates.users.configPassword = await bcrypt.hash(updates.users.configPassword, saltRounds)
     }
 
-    this.config = { ...this.config, ...updates }
+    // Deep-merge section by section so untouched fields (and secrets left
+    // blank by the client, e.g. a masked token) are preserved instead of
+    // being wiped by a shallow top-level merge.
+    this.config = {
+      ...this.config,
+      plex: { ...this.config.plex, ...this.stripEmptySecrets(updates.plex, ['token']) },
+      lastfm: { ...this.config.lastfm, ...this.stripEmptySecrets(updates.lastfm, ['apiKey', 'apiSecret', 'sessionKey']) },
+      display: { ...this.config.display, ...updates.display },
+      users: updates.users ? { ...this.config.users, ...updates.users } : this.config.users
+    }
     await this.saveConfig()
     return this.config
+  }
+
+  // Drops secret fields the client sent back as empty (meaning "unchanged"),
+  // so an empty field never overwrites a value already saved on the server.
+  stripEmptySecrets(section, secretKeys) {
+    if (!section) return {}
+    const cleaned = { ...section }
+    for (const key of secretKeys) {
+      if (cleaned[key] === '' || cleaned[key] === undefined) {
+        delete cleaned[key]
+      }
+    }
+    return cleaned
   }
 
   async verifyConfigPassword(password) {

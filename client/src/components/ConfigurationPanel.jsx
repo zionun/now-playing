@@ -304,8 +304,7 @@ const ConfigurationPanel = () => {
               id="plex-token"
               value={formData.plex.token}
               onChange={(e) => handleInputChange('plex', 'token', e.target.value)}
-              placeholder="Token di accesso Plex"
-              required
+              placeholder={config?.plex?.token ? 'Lascia vuoto per non modificarlo' : 'Token di accesso Plex'}
             />
           </div>
           

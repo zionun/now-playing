@@ -1,0 +1,22 @@
+{
+  "plex": {
+    "url": "",
+    "port": 32400,
+    "token": "",
+    "preferredUser": null
+  },
+  "lastfm": {
+    "username": "",
+    "apiKey": "",
+    "apiSecret": "",
+    "sessionKey": ""
+  },
+  "display": {
+    "showControlsTimeout": 4000,
+    "idleTimeout": 300000,
+    "enableLastfmIdle": true
+  },
+  "users": {
+    "configPassword": null
+  }
+}

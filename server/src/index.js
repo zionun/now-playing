@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import { ConfigService } from './services/ConfigService.js';
 import { LastfmService } from './services/LastfmService.js';
 import lastfmRouter, { setLastfmService } from './routes/lastfm.js';
+import configRouter, { setConfigService } from './routes/config.js';
 
 dotenv.config();
 
@@ -28,26 +29,62 @@ const appConfig = configService.getConfig();
 const lastfmService = new LastfmService(configService);
 
 // 📋 ADVANCED CONFIGURATION - Main server with multi-player functionality
-const CONFIG = {
-  // Token e server Plex (priorità: variabili ambiente > config file > default)
-  PLEX_TOKEN: process.env.PLEX_TOKEN || appConfig.plex?.token || 'REMOVED',
-  PLEX_SERVER_URL: process.env.PLEX_SERVER_URL || `http://${appConfig.plex?.url || '192.168.1.11'}:${appConfig.plex?.port || 32400}`,
-  PLEX_SERVER_PORT: process.env.PLEX_SERVER_PORT || appConfig.plex?.port || 32400,
-  
-  // Player IP opzionale (verrà scoperto automaticamente)
-  PLAYER_IP: process.env.PLAYER_IP || null,
-  
-  // Configurazione client
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
-  
-  // Configurazione Last.fm
-  LASTFM: {
-    username: appConfig.lastfm?.username || '',
-    apiKey: appConfig.lastfm?.apiKey || '',
-    apiSecret: appConfig.lastfm?.apiSecret || '',
-    sessionKey: appConfig.lastfm?.sessionKey || ''
+// Built from (priority) env vars > config file, with no hardcoded fallback
+// secrets or default server IP: without a token/url the app waits for setup
+// instead of silently pointing at someone else's server.
+function buildConfig(currentAppConfig) {
+  return {
+    PLEX_TOKEN: process.env.PLEX_TOKEN || currentAppConfig.plex?.token || '',
+    PLEX_SERVER_URL: process.env.PLEX_SERVER_URL ||
+      (currentAppConfig.plex?.url ? `http://${currentAppConfig.plex.url}:${currentAppConfig.plex?.port || 32400}` : ''),
+    PLEX_SERVER_PORT: process.env.PLEX_SERVER_PORT || currentAppConfig.plex?.port || 32400,
+
+    // Player IP opzionale (verrà scoperto automaticamente)
+    PLAYER_IP: process.env.PLAYER_IP || null,
+
+    // Configurazione client
+    CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
+
+    // Configurazione Last.fm
+    LASTFM: {
+      username: currentAppConfig.lastfm?.username || '',
+      apiKey: currentAppConfig.lastfm?.apiKey || '',
+      apiSecret: currentAppConfig.lastfm?.apiSecret || '',
+      sessionKey: currentAppConfig.lastfm?.sessionKey || ''
+    }
+  };
+}
+
+let CONFIG = buildConfig(appConfig);
+
+// 📋 HOT-RELOAD - Rilegge la config da disco dopo un salvataggio da /config,
+// così le modifiche hanno effetto subito senza dover riavviare il processo.
+async function reloadConfigFromDisk() {
+  await configService.loadConfig();
+  CONFIG = buildConfig(configService.getConfig());
+  lastFmCache = { data: null, fetchedAt: 0 };
+
+  // Il server Plex configurato può essere cambiato: la cache dei player
+  // scoperti in precedenza non è più valida.
+  availablePlayers.clear();
+  activePlayers.clear();
+  playerIPCache.clear();
+
+  console.log('🔄 Configurazione ricaricata:', {
+    serverUrl: CONFIG.PLEX_SERVER_URL || '(non configurato)',
+    hasToken: !!CONFIG.PLEX_TOKEN
+  });
+
+  if (CONFIG.PLEX_TOKEN && CONFIG.PLEX_SERVER_URL) {
+    connectToPlexWebSocket();
+    await updateSessionsAndBroadcast();
   }
-};
+}
+
+// Cache per l'ultima traccia Last.fm (fallback quando non c'è nulla in
+// riproduzione): evita di interrogare l'API a ogni ciclo di polling (10s).
+let lastFmCache = { data: null, fetchedAt: 0 };
+const LASTFM_CACHE_TTL_MS = 30000;
 
 // Cache per i player scoperti
 let playerIPCache = new Map();
@@ -160,6 +197,9 @@ async function discoverAllPlexPlayers(baseIP) {
 
 // 📋 RECUPERO SESSIONI ATTIVE
 async function getActiveSessions() {
+  if (!CONFIG.PLEX_SERVER_URL || !CONFIG.PLEX_TOKEN) {
+    return null; // Plex non ancora configurato, niente da interrogare
+  }
   try {
     const response = await axios.get(`${CONFIG.PLEX_SERVER_URL}/status/sessions`, {
       headers: {
@@ -178,17 +218,18 @@ async function getActiveSessions() {
 // 📋 TRASFORMAZIONE URL IMMAGINI PLEX
 function transformPlexImageUrl(imageUrl) {
   if (!imageUrl) return null;
-  
+
   // Se l'URL è già completa, restituiscila così com'è
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     return imageUrl;
   }
-  
-  // Se è un'URL relativa di Plex, trasformala in URL completa con token
+
+  // Se è un percorso relativo di Plex, fallo passare per il proxy /api/art
+  // invece di mandare il token Plex al browser dentro l'URL dell'immagine.
   if (imageUrl.startsWith('/')) {
-    return `${CONFIG.PLEX_SERVER_URL}${imageUrl}?X-Plex-Token=${CONFIG.PLEX_TOKEN}`;
+    return `/api/art?path=${encodeURIComponent(imageUrl)}`;
   }
-  
+
   return imageUrl;
 }
 
@@ -206,15 +247,22 @@ async function getLastFmTrack() {
       };
     }
 
+    // Serve dalla cache se recente: questa funzione viene chiamata a ogni
+    // ciclo di polling (10s) mentre non c'è nulla in riproduzione.
+    if (lastFmCache.data && (Date.now() - lastFmCache.fetchedAt) < LASTFM_CACHE_TTL_MS) {
+      return lastFmCache.data;
+    }
+
     // Recupera l'ultima traccia da Last.fm
     const lastFmUrl = `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${CONFIG.LASTFM.username}&api_key=${CONFIG.LASTFM.apiKey}&format=json&limit=1`;
     
     const response = await axios.get(lastFmUrl, { timeout: 5000 });
-    
+
+    let result;
     if (response.data && response.data.recenttracks && response.data.recenttracks.track && response.data.recenttracks.track.length > 0) {
       const track = response.data.recenttracks.track[0];
-      
-      return {
+
+      result = {
         title: track.name || "Titolo sconosciuto",
         artist: track.artist?.['#text'] || track.artist || "Artista sconosciuto",
         album: track.album?.['#text'] || track.album || "",
@@ -224,7 +272,7 @@ async function getLastFmTrack() {
         lastfmUrl: track.url
       };
     } else {
-      return {
+      result = {
         title: "Nessuna traccia trovata",
         artist: CONFIG.LASTFM.username,
         album: "Last.fm",
@@ -232,6 +280,9 @@ async function getLastFmTrack() {
         isPlaying: false
       };
     }
+
+    lastFmCache = { data: result, fetchedAt: Date.now() };
+    return result;
   } catch (error) {
     console.error('❌ Errore Last.fm:', error.message);
     return {
@@ -850,6 +901,28 @@ app.use(express.static(path.join(__dirname, '../../client/dist')));
 // 📋 REGISTRAZIONE ROUTE API
 setLastfmService(lastfmService);
 app.use('/api/lastfm', lastfmRouter);
+setConfigService(configService, reloadConfigFromDisk);
+app.use('/api/config', configRouter);
+
+// Test di connessione usato dal pannello /config prima di salvare
+app.post('/api/plex/test-connection', async (req, res) => {
+  try {
+    const { url, port, token } = req.body;
+    if (!url || !token) {
+      return res.status(400).json({ error: 'URL e token sono obbligatori' });
+    }
+
+    const response = await axios.get(`http://${url}:${port || 32400}/identity`, {
+      headers: { 'X-Plex-Token': token, 'Accept': 'application/json' },
+      timeout: 5000
+    });
+
+    const server = response.data?.MediaContainer;
+    res.json({ success: true, server: server?.friendlyName || server?.machineIdentifier || url });
+  } catch (error) {
+    res.status(400).json({ error: error.response?.status === 401 ? 'Token non valido' : error.message });
+  }
+});
 
 const server = createServer(app);
 const io = new Server(server, {
@@ -1186,10 +1259,42 @@ app.post('/api/control/:command', async (req, res) => {
 
 app.get('/api/discover', async (req, res) => {
   try {
-    const player = await discoverPlexPlayer();
-    res.json(player);
+    const serverIP = new URL(CONFIG.PLEX_SERVER_URL).hostname;
+    const players = await discoverAllPlexPlayers(serverIP);
+    res.json(players);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 📋 PROXY IMMAGINI PLEX - Il token non deve mai raggiungere il browser:
+// il client chiede sempre /api/art?path=..., il server aggiunge il token
+// e inoltra la richiesta al server Plex.
+app.get('/api/art', async (req, res) => {
+  try {
+    const { path: imagePath } = req.query;
+
+    // Accetta solo percorsi relativi dello stesso server Plex configurato,
+    // mai un URL assoluto o un percorso protocol-relative (evita SSRF).
+    if (!imagePath || typeof imagePath !== 'string' || !imagePath.startsWith('/') || imagePath.startsWith('//')) {
+      return res.status(400).json({ error: 'Percorso immagine non valido' });
+    }
+    if (!CONFIG.PLEX_SERVER_URL || !CONFIG.PLEX_TOKEN) {
+      return res.status(503).json({ error: 'Plex non configurato' });
+    }
+
+    const response = await axios.get(`${CONFIG.PLEX_SERVER_URL}${imagePath}`, {
+      params: { 'X-Plex-Token': CONFIG.PLEX_TOKEN },
+      responseType: 'stream',
+      timeout: 10000
+    });
+
+    res.set('Content-Type', response.headers['content-type'] || 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=3600');
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('❌ Errore proxy immagine:', error.message);
+    res.status(502).json({ error: 'Impossibile recuperare l\'immagine da Plex' });
   }
 });
 
@@ -1265,13 +1370,19 @@ function connectToPlexWebSocket() {
     plexWebSocket.close();
   }
   
+  if (!CONFIG.PLEX_SERVER_URL || !CONFIG.PLEX_TOKEN) {
+    console.log('⚠️  Plex non configurato, WebSocket non avviata');
+    return;
+  }
+
   console.log('🔌 Connessione WebSocket Plex...');
-  
+
   // Costruisci URL WebSocket (sostituisci http con ws) + filtro per eventi playing
-  const wsUrl = CONFIG.PLEX_SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://') + 
+  const wsUrl = CONFIG.PLEX_SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://') +
                 `/:/websockets/notifications?X-Plex-Token=${CONFIG.PLEX_TOKEN}&filters=playing`;
-  
-  console.log('🔗 URL WebSocket:', wsUrl);
+
+  // Non stampare mai il token nei log
+  console.log('🔗 URL WebSocket:', wsUrl.replace(CONFIG.PLEX_TOKEN, '***'));
   
   plexWebSocket = new WebSocket(wsUrl);
   
@@ -1450,8 +1561,15 @@ const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, async () => {
   console.log(`🚀 Server avviato su porta ${PORT}`);
+
+  if (!CONFIG.PLEX_SERVER_URL || !CONFIG.PLEX_TOKEN) {
+    console.log('⚠️  Plex non configurato: apri /config per impostare server e token.');
+    startMonitoring();
+    return;
+  }
+
   console.log(`📊 Plex Server: ${CONFIG.PLEX_SERVER_URL}`);
-  
+
   // FASE 1: Controlla sessioni attive per identificare player
   console.log('\n🔍 FASE 1: Controllo sessioni attive...');
   const sessions = await getActiveSessions();

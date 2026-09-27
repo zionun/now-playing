@@ -3,9 +3,11 @@ import express from 'express'
 const router = express.Router()
 
 let configService = null
+let onConfigUpdated = null
 
-export function setConfigService(service) {
+export function setConfigService(service, reloadCallback = null) {
   configService = service
+  onConfigUpdated = reloadCallback
 }
 
 // Get configuration (excluding sensitive data)
@@ -49,6 +51,13 @@ router.post('/', async (req, res) => {
     }
     
     await configService.updateConfig(newConfig)
+
+    // Applica subito le modifiche (URL/token Plex, chiavi Last.fm...) senza
+    // richiedere un riavvio del processo.
+    if (onConfigUpdated) {
+      await onConfigUpdated()
+    }
+
     res.json({ success: true })
   } catch (error) {
     res.status(400).json({ error: error.message })

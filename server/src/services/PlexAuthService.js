@@ -98,14 +98,13 @@ export class PlexAuthService {
 
     const resources = Array.isArray(response.data) ? response.data : []
 
-    return resources
+    const servers = await Promise.all(resources
       .filter(resource => (resource.provides || '').split(',').includes('server'))
-      .map(resource => {
-        const connections = resource.connections || []
-        const connection =
-          connections.find(c => c.local && !c.relay) ||
-          connections.find(c => !c.relay) ||
-          connections[0]
+      .map(async resource => {
+        // I server condivisi hanno un accessToken proprio, diverso da
+        // quello dell'account: va usato quello quando presente.
+        const accessToken = resource.accessToken || authToken
+        const connection = await this.pickConnection(resource.connections || [], accessToken)
 
         if (!connection) return null
 
@@ -115,12 +114,37 @@ export class PlexAuthService {
           local: !!connection.local,
           url: connection.address,
           port: connection.port,
-          // I server condivisi hanno un accessToken proprio, diverso da
-          // quello dell'account: va usato quello quando presente.
-          accessToken: resource.accessToken || authToken
+          accessToken
         }
-      })
-      .filter(Boolean)
+      }))
+
+    return servers.filter(Boolean)
+  }
+
+  // Sceglie la connessione da usare: in ordine di preferenza locale, diretta,
+  // relay, ma solo tra quelle che rispondono davvero. Gli indirizzi "locali"
+  // annunciati da plex.tv non sempre sono raggiungibili (es. Plex in Docker
+  // annuncia l'IP interno del container), quindi vanno provati.
+  async pickConnection(connections, token) {
+    const ordered = [
+      ...connections.filter(c => c.local && !c.relay),
+      ...connections.filter(c => !c.local && !c.relay),
+      ...connections.filter(c => c.relay)
+    ]
+
+    const reachable = await Promise.all(ordered.map(async c => {
+      try {
+        await axios.get(`http://${c.address}:${c.port}/identity`, {
+          headers: { 'Accept': 'application/json', 'X-Plex-Token': token },
+          timeout: 3000
+        })
+        return true
+      } catch {
+        return false
+      }
+    }))
+
+    return ordered.find((c, i) => reachable[i]) || ordered[0] || null
   }
 
   // Verifica se un token è ancora valido (non revocato dall'utente)

@@ -14,11 +14,16 @@ echo "🚀 Installing Now Playing for Plex..."
 
 [ "$EUID" -eq 0 ] || fail "Please run as root (use sudo)"
 
-# System packages: git, curl and the build tools needed to compile native
+# System packages: git, curl, xdotool (kiosk watchdog) and the build tools needed to compile native
 # modules (bcrypt) when no prebuilt binary is available for this CPU
 echo "📦 Installing system packages..."
 apt update
-apt install -y git curl ca-certificates build-essential python3
+apt install -y git curl ca-certificates build-essential python3 xdotool
+
+# Kiosk: disable Chromium's translate prompt via a managed policy
+echo "🌐 Disabling Chromium translation..."
+mkdir -p /etc/chromium/policies/managed
+echo '{ "TranslateEnabled": false }' > /etc/chromium/policies/managed/kiosk.json
 
 # Node.js (LTS)
 NODE_MAJOR=0

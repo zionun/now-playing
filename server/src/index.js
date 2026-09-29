@@ -152,8 +152,22 @@ let lastUserAction = null; // Traccia l'ultima azione dell'utente {action, times
 let plexWebSocket = null;
 
 // 📋 FUNZIONE NMAP DISCOVERY (sostituisce ARP)
+// Solo reti private: se il server Plex è raggiunto tramite IP pubblico (es.
+// Plex in Docker o accesso remoto) non va mai scansionata la sua /24, che
+// appartiene ad altri. In quel caso si usa la rete locale di questa macchina.
+const isPrivateIPv4 = ip => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip || '');
+
 async function nmapDiscovery(baseIP) {
   try {
+    if (!isPrivateIPv4(baseIP)) {
+      const lanIP = deviceSetupService.getLanAddress();
+      if (!isPrivateIPv4(lanIP)) {
+        console.log(`🗺️  Discovery nmap saltata: nessuna rete locale privata (${baseIP})`);
+        return [];
+      }
+      baseIP = lanIP;
+    }
+
     // Estrai la rete dalla base IP (es. 192.168.1.11 -> 192.168.1.0/24)
     const networkParts = baseIP.split('.');
     const networkBase = `${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24`;
@@ -181,7 +195,19 @@ async function nmapDiscovery(baseIP) {
 }
 
 // 📋 DISCOVERY PLEX PLAYERS CON NMAP
-async function discoverAllPlexPlayers(baseIP) {
+// Una sola scansione alla volta: le richieste concorrenti condividono
+// quella in corso invece di lanciare più nmap in parallelo.
+let discoveryInFlight = null;
+function discoverAllPlexPlayers(baseIP) {
+  if (!discoveryInFlight) {
+    discoveryInFlight = runPlexPlayerDiscovery(baseIP).finally(() => {
+      discoveryInFlight = null;
+    });
+  }
+  return discoveryInFlight;
+}
+
+async function runPlexPlayerDiscovery(baseIP) {
   try {
     console.log('🔍 Starting complete Plex player discovery...');
     
@@ -1770,10 +1796,15 @@ server.listen(PORT, async () => {
   } else {
     console.log('📭 Nessuna sessione Plex attiva al momento');
     
-    // Se non ci sono sessioni, fai discovery completo
-    console.log('\n🔍 Avvio discovery completo...');
+    // Se non ci sono sessioni, fai discovery completo in background: la
+    // scansione può durare minuti e non deve ritardare il monitoraggio e gli
+    // eventi in tempo reale (altrimenti lo schermo non si aggiorna finché
+    // non finisce).
+    console.log('\n🔍 Avvio discovery completo in background...');
     const serverIP = new URL(CONFIG.PLEX_SERVER_URL).hostname;
-    await discoverAllPlexPlayers(serverIP);
+    discoverAllPlexPlayers(serverIP).catch(error => {
+      console.error('❌ Errore discovery in background:', error.message);
+    });
   }
   
   // FASE 3: Avvia monitoraggio

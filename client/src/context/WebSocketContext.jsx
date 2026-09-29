@@ -28,6 +28,8 @@ export const WebSocketProvider = ({ children }) => {
   const [authRequired, setAuthRequired] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [configVersion, setConfigVersion] = useState(0)
+  // Stato di Plex/Last.fm per l'indicatore discreto a schermo
+  const [health, setHealth] = useState(null)
 
   useEffect(() => {
     fetch('/api/auth/state')
@@ -53,7 +55,6 @@ export const WebSocketProvider = ({ children }) => {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 5,
       autoConnect: true
     })
 
@@ -146,6 +147,10 @@ export const WebSocketProvider = ({ children }) => {
       setConfigVersion(v => v + 1)
     })
 
+    socketConnection.on('health', data => {
+      setHealth(data)
+    })
+
     socketConnection.on('authRequired', () => {
       console.log('🔑 Login Plex richiesto')
       setAuthRequired(true)
@@ -184,6 +189,7 @@ export const WebSocketProvider = ({ children }) => {
     authRequired,
     authChecked,
     configVersion,
+    health,
     markAuthenticated
   }
 

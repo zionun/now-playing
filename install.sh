@@ -48,6 +48,13 @@ fi
 echo "🔧 Installing PM2..."
 npm install -g pm2
 
+echo "🗂️  Configuring log rotation..."
+# Rotazione dei log: file piccoli e pochi, per non consumare la scheda SD
+pm2 describe pm2-logrotate >/dev/null 2>&1 || pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 5M
+pm2 set pm2-logrotate:retain 3
+pm2 set pm2-logrotate:compress true
+
 # Create app directory and copy files
 APP_DIR="/opt/now-playing"
 echo "📁 Creating application directory: $APP_DIR"
@@ -96,9 +103,8 @@ fi
 echo ""
 echo "📋 Next steps:"
 echo "1. Reboot your Raspberry Pi"
-echo "2. Access configuration at http://your-pi-ip:3001/config"
-echo "3. Configure Plex server settings"
-echo "4. (Optional) Configure Last.fm integration"
+echo "2. Scan the QR code shown on the screen with your phone"
+echo "3. Follow the setup: device password, Plex login, Last.fm (optional)"
 echo ""
 echo "🔧 Useful commands:"
 echo "  pm2 status          - Check application status"

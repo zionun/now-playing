@@ -180,7 +180,9 @@ export class PlexAuthService {
       .map(resource => ({
         machineIdentifier: resource.clientIdentifier,
         title: resource.name || resource.product || 'Player',
-        product: resource.product || ''
+        product: resource.product || '',
+        provides: (resource.provides || '').split(',').map(s => s.trim()).filter(Boolean),
+        presence: !!resource.presence
       }))
   }
 

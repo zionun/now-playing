@@ -4,6 +4,7 @@ import NowPlayingDisplay from './components/NowPlayingDisplay'
 import ConfigurationPanel from './components/ConfigurationPanel'
 import LoginScreen, { ConfigQrButton } from './components/LoginScreen'
 import SetupPage from './components/phone/SetupPage'
+import HealthIndicator from './components/HealthIndicator'
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext'
 
 // Mostra il QR di configurazione al posto dell'interfaccia normale finché il
@@ -16,6 +17,7 @@ function Home() {
     <>
       <NowPlayingDisplay />
       <ConfigQrButton />
+      <HealthIndicator />
     </>
   )
 }

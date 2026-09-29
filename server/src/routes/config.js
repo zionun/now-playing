@@ -5,11 +5,13 @@ const router = express.Router()
 let configService = null
 let onConfigUpdated = null
 let setupService = null
+let getFilterOptions = null
 
-export function setConfigService(service, reloadCallback = null, deviceSetupService = null) {
+export function setConfigService(service, reloadCallback = null, deviceSetupService = null, filterOptions = null) {
   configService = service
   onConfigUpdated = reloadCallback
   setupService = deviceSetupService
+  getFilterOptions = filterOptions
 }
 
 // Tutta la configurazione richiede la sessione aperta con la password
@@ -40,6 +42,16 @@ router.get('/', (req, res) => {
     }
     
     res.json(safeConfig)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Opzioni per i filtri: utenti del server Plex e player noti (dal server,
+// da plex.tv, dalla rete locale e dalle sessioni viste di recente)
+router.get('/filter-options', async (req, res) => {
+  try {
+    res.json(await getFilterOptions())
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

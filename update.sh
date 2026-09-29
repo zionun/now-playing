@@ -58,6 +58,13 @@ if [ -f "/tmp/now-playing-config-backup.json" ]; then
     echo "✅ Configuration restored"
 fi
 
+echo "🗂️  Checking log rotation..."
+# Rotazione dei log: file piccoli e pochi, per non consumare la scheda SD
+pm2 describe pm2-logrotate >/dev/null 2>&1 || pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 5M
+pm2 set pm2-logrotate:retain 3
+pm2 set pm2-logrotate:compress true
+
 # Restart PM2
 echo "🔄 Restarting PM2 processes..."
 pm2 start ecosystem.config.cjs

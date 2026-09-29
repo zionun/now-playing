@@ -110,27 +110,25 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
           </div>
         )}
 
-        {/* Media controls */}
+        {/* Media controls: solo se il player accetta davvero comandi */}
+        {hasControls ? (
         <div className="media-controls">
           <button 
-            className={`control-button ${!hasControls ? 'disabled' : ''}`}
+            className="control-button"
             onClick={(e) => handleControlClick('previous', e)}
             onTouchStart={(e) => handleControlTouch('previous', e)}
             aria-label="Previous track"
-            disabled={!hasControls}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
             </svg>
-            {!hasControls && <div className="spinner"></div>}
           </button>
 
           <button 
-            className={`control-button play-pause ${!hasControls ? 'disabled' : ''}`}
+            className="control-button play-pause"
             onClick={(e) => handleControlClick(isPlaying ? 'pause' : 'play', e)}
             onTouchStart={(e) => handleControlTouch(isPlaying ? 'pause' : 'play', e)}
             aria-label={isPlaying ? "Pause" : "Play"}
-            disabled={!hasControls}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               {isPlaying ? (
@@ -139,22 +137,22 @@ const TouchOverlay = ({ show, onInteraction, onClose, track, isPlaying, activeUs
                 <path d="M8 5v14l11-7z"/>
               )}
             </svg>
-            {!hasControls && <div className="spinner"></div>}
           </button>
 
           <button 
-            className={`control-button ${!hasControls ? 'disabled' : ''}`}
+            className="control-button"
             onClick={(e) => handleControlClick('next', e)}
             onTouchStart={(e) => handleControlTouch('next', e)}
             aria-label="Next track"
-            disabled={!hasControls}
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
             </svg>
-            {!hasControls && <div className="spinner"></div>}
           </button>
         </div>
+        ) : (
+          <p className="controls-unavailable">Questo player non accetta comandi da qui</p>
+        )}
 
         {/* Current track info */}
         <div className="overlay-track-info">

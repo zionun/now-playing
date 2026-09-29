@@ -464,3 +464,9 @@
     height: 75px;
   }
 }
+.controls-unavailable {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  text-align: center;
+  padding: 1rem 0;
+}

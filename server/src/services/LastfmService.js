@@ -1,59 +1,96 @@
 import axios from 'axios'
 import crypto from 'crypto'
+import { createLogger } from '../lib/logger.js'
+
+const log = createLogger('lastfm')
+const FALLBACK_CACHE_TTL_MS = 30000
 
 export class LastfmService {
   constructor(configService) {
     this.configService = configService
     this.baseUrl = 'http://ws.audioscrobbler.com/2.0/'
+    this.fallbackCache = { data: null, fetchedAt: 0 }
+    this.lastOkAt = null
+    this.lastError = null
+  }
+
+  // Configurazione effettiva: la API key può arrivare anche da LASTFM_API_KEY
+  config() {
+    const config = this.configService.getLastfmConfig()
+    return { ...config, apiKey: config.apiKey || process.env.LASTFM_API_KEY || '' }
+  }
+
+  isConfigured() {
+    const { username, apiKey } = this.config()
+    return !!(username && apiKey)
+  }
+
+  clearCache() {
+    this.fallbackCache = { data: null, fetchedAt: 0 }
+  }
+
+  async call(params, timeout = 5000) {
+    try {
+      const response = await axios.get(this.baseUrl, { params: { ...params, format: 'json' }, timeout })
+      this.lastOkAt = Date.now()
+      this.lastError = null
+      return response.data
+    } catch (error) {
+      this.lastError = error.response?.data?.message || error.message
+      throw error
+    }
+  }
+
+  // Ultima traccia ascoltata, mostrata come "traccia" quando non suona nulla.
+  // In cache per 30s: viene richiesta a ogni aggiornamento dello schermo.
+  async getFallbackTrack() {
+    if (!this.isConfigured()) {
+      return { title: 'Last.fm non configurato', artist: '', album: '', isLastFm: true, isPlaying: false }
+    }
+    if (this.fallbackCache.data && Date.now() - this.fallbackCache.fetchedAt < FALLBACK_CACHE_TTL_MS) {
+      return this.fallbackCache.data
+    }
+    try {
+      const [track] = await this.getRecentTracks(1)
+      const data = track
+        ? {
+            title: track.name || 'Titolo sconosciuto',
+            artist: track.artist?.['#text'] || track.artist || '',
+            album: track.album?.['#text'] || track.album || '',
+            thumb: track.image?.[2]?.['#text'] || null,
+            isLastFm: true,
+            isPlaying: !!track['@attr']?.nowplaying,
+            lastfmUrl: track.url
+          }
+        : { title: 'Nessuna traccia trovata', artist: this.config().username, album: 'Last.fm', isLastFm: true, isPlaying: false }
+      this.fallbackCache = { data, fetchedAt: Date.now() }
+      return data
+    } catch (error) {
+      log.warn('Ultima traccia non disponibile:', this.lastError)
+      return { title: 'Last.fm non raggiungibile', artist: '', album: 'Last.fm', isLastFm: true, isPlaying: false }
+    }
   }
 
   async getUserInfo() {
-    const config = this.configService.getLastfmConfig()
-    
+    const config = this.config()
     if (!config.username || !config.apiKey) {
       throw new Error('Last.fm not configured')
     }
-
-    const params = {
-      method: 'user.getinfo',
-      user: config.username,
-      api_key: config.apiKey,
-      format: 'json'
-    }
-
-    const response = await axios.get(this.baseUrl, { params })
-    return response.data.user
+    const data = await this.call({ method: 'user.getinfo', user: config.username, api_key: config.apiKey })
+    return data.user
   }
 
   async getRecentTracks(limit = 1) {
-    const config = this.configService.getLastfmConfig()
-    
-    const params = {
-      method: 'user.getrecenttracks',
-      user: config.username,
-      api_key: config.apiKey,
-      format: 'json',
-      limit
-    }
-
-    const response = await axios.get(this.baseUrl, { params })
-    return response.data.recenttracks?.track || []
+    const config = this.config()
+    const data = await this.call({ method: 'user.getrecenttracks', user: config.username, api_key: config.apiKey, limit })
+    const tracks = data.recenttracks?.track || []
+    return Array.isArray(tracks) ? tracks : [tracks]
   }
 
   async getTopAlbums(period = '7day', limit = 12) {
-    const config = this.configService.getLastfmConfig()
-    
-    const params = {
-      method: 'user.gettopalbums',
-      user: config.username,
-      api_key: config.apiKey,
-      format: 'json',
-      period: period,
-      limit: limit
-    }
-
-    const response = await axios.get(this.baseUrl, { params })
-    const topAlbums = response.data.topalbums?.album || []
+    const config = this.config()
+    const data = await this.call({ method: 'user.gettopalbums', user: config.username, api_key: config.apiKey, period, limit })
+    const topAlbums = data.topalbums?.album || []
     
     // Albums are already sorted by playcount from Last.fm server
     const formattedAlbums = topAlbums
@@ -90,20 +127,17 @@ export class LastfmService {
     let allAlbums = []
     const seenAlbums = new Set() // Track unique album+artist combinations
     
-    console.log(`Starting progressive album fetch to reach ${targetLimit} albums...`)
     
     for (const period of periods) {
       if (allAlbums.length >= targetLimit) {
-        console.log(`Target of ${targetLimit} albums reached, stopping`)
         break
       }
       
       const remainingSlots = targetLimit - allAlbums.length
-      console.log(`Fetching albums for period: ${period} (need ${remainingSlots} more albums)`)
+      log.debug(`Album dal periodo ${period} (ne mancano ${remainingSlots})`)
       
       try {
         const periodAlbums = await this.getTopAlbums(period, 50) // Fetch more to increase chances of finding unique ones
-        let addedFromThisPeriod = 0
         
         for (const album of periodAlbums) {
           if (allAlbums.length >= targetLimit) break
@@ -113,23 +147,17 @@ export class LastfmService {
           if (!seenAlbums.has(albumKey)) {
             seenAlbums.add(albumKey)
             allAlbums.push(album)
-            addedFromThisPeriod++
           }
         }
         
-        console.log(`Added ${addedFromThisPeriod} unique albums from ${period} period (total: ${allAlbums.length})`)
         
       } catch (error) {
-        console.error(`Error fetching albums for period ${period}:`, error.message)
+        log.debug(`Album del periodo ${period} non disponibili:`, error.message)
         // Continue with next period even if this one fails
       }
     }
     
-    const finalAlbums = allAlbums.slice(0, targetLimit)
-    console.log(`Final album collection: ${finalAlbums.length} albums`)
-    console.log('Albums:', finalAlbums.map((a, i) => `${i + 1}. ${a.artist.name} - ${a.name}`))
-    
-    return finalAlbums
+    return allAlbums.slice(0, targetLimit)
   }
 
   async getIdleScreenData() {
@@ -141,20 +169,21 @@ export class LastfmService {
       ])
 
       return {
+        username: userInfo.name,
         scrobbles: parseInt(userInfo.playcount || 0),
         lastTrack: Array.isArray(recentTrack) ? recentTrack[0] : recentTrack,
         topAlbums: topAlbums // Albums from cascading time periods, ordered by relevance
       }
     } catch (error) {
-      console.error('Error fetching Last.fm data:', error)
+      log.warn('Dati per la schermata idle non disponibili:', error.message)
       throw error
     }
   }
 
   async authenticate(username, password) {
     // This is a simplified auth flow - in production you'd want proper OAuth
-    const config = this.configService.getLastfmConfig()
-    
+    const config = this.config()
+
     const authToken = crypto.createHash('md5')
       .update(username + crypto.createHash('md5').update(password).digest('hex'))
       .digest('hex')

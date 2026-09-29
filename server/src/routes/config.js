@@ -26,9 +26,9 @@ router.get('/', (req, res) => {
         url: config.plex?.url || '',
         port: config.plex?.port || 32400,
         token: config.plex?.token ? '***' : '',
-        serverName: config.plex?.serverName || '',
-        preferredUser: config.plex?.preferredUser
+        serverName: config.plex?.serverName || ''
       },
+      filters: config.filters,
       lastfm: {
         username: config.lastfm?.username || '',
         apiKey: config.lastfm?.apiKey ? '***' : '',

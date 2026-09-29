@@ -2,6 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import bcrypt from 'bcrypt'
 import { fileURLToPath } from 'url'
+import { DEFAULT_FILTERS, normalizeFilters } from './sessionFilters.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -15,7 +16,7 @@ export class ConfigService {
   async loadConfig() {
     try {
       const configData = await fs.readFile(this.configPath, 'utf8')
-      this.config = JSON.parse(configData)
+      this.config = this.migrate(JSON.parse(configData))
       console.log('Configuration loaded successfully')
     } catch (error) {
       console.log('No config file found, creating default...')
@@ -24,15 +25,27 @@ export class ConfigService {
     }
   }
 
+  // Configurazioni salvate da versioni precedenti: plex.preferredUser (mai
+  // usato) è sostituito da filters.users, e filters va sempre inizializzato.
+  migrate(config) {
+    if (config.plex && 'preferredUser' in config.plex) {
+      const { preferredUser, ...plex } = config.plex
+      config.plex = plex
+    }
+    config.filters = normalizeFilters(config.filters)
+    return config
+  }
+
   getDefaultConfig() {
     return {
       plex: {
         url: '',
         port: 32400,
         token: '',
-        clientIdentifier: '', // identificativo stabile per il login PIN/QR
-        preferredUser: null // null means show any user's music
+        clientIdentifier: '' // identificativo stabile per il login PIN/QR
       },
+      // Filtri sulle sessioni: liste vuote = nessuna restrizione
+      filters: { ...DEFAULT_FILTERS },
       lastfm: {
         username: '',
         apiKey: '',
@@ -82,6 +95,10 @@ export class ConfigService {
       plex: { ...this.config.plex, ...this.stripEmptySecrets(updates.plex, ['token']) },
       lastfm: { ...this.config.lastfm, ...this.stripEmptySecrets(updates.lastfm, ['apiKey', 'apiSecret', 'sessionKey']) },
       display: { ...this.config.display, ...updates.display },
+      // Le liste di utenti/player sostituiscono quelle precedenti
+      filters: updates.filters
+        ? normalizeFilters({ ...this.config.filters, ...updates.filters })
+        : this.config.filters,
       users: updates.users ? { ...this.config.users, ...updates.users } : this.config.users
     }
     await this.saveConfig()

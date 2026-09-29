@@ -2,8 +2,12 @@
   "plex": {
     "url": "",
     "port": 32400,
-    "token": "",
-    "preferredUser": null
+    "token": ""
+  },
+  "filters": {
+    "lanOnly": false,
+    "users": [],
+    "players": []
   },
   "lastfm": {
     "username": "",

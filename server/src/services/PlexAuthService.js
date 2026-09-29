@@ -166,6 +166,24 @@ export class PlexAuthService {
     return servers.filter(Boolean)
   }
 
+  // Dispositivi dell'account che fanno da player (Plexamp, app mobile,
+  // Plex HTPC...), per proporli nei filtri con un nome leggibile.
+  async getPlayerResources(authToken) {
+    const clientIdentifier = await this.getClientIdentifier()
+    const response = await axios.get(`${PLEX_TV_API}/resources`, {
+      headers: { ...this.plexHeaders(clientIdentifier), 'X-Plex-Token': authToken },
+      timeout: 8000
+    })
+    const resources = Array.isArray(response.data) ? response.data : []
+    return resources
+      .filter(resource => (resource.provides || '').split(',').includes('player'))
+      .map(resource => ({
+        machineIdentifier: resource.clientIdentifier,
+        title: resource.name || resource.product || 'Player',
+        product: resource.product || ''
+      }))
+  }
+
   // Sceglie la connessione da usare: in ordine di preferenza locale, diretta,
   // relay, ma solo tra quelle che rispondono davvero. Gli indirizzi "locali"
   // annunciati da plex.tv non sempre sono raggiungibili (es. Plex in Docker

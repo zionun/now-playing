@@ -4,6 +4,7 @@ import PhonePage from './phone/PhonePage'
 import PasswordGate, { NewPasswordForm } from './phone/PasswordGate'
 import PlexConnect, { hasPendingPlexPin } from './phone/PlexConnect'
 import LastfmForm from './phone/LastfmForm'
+import FiltersForm from './phone/FiltersForm'
 
 // Configurazione generale, aperta dal telefono con il QR che il kiosk mostra
 // toccando l'icona ⚙︎. Richiede sempre la password del dispositivo.
@@ -37,7 +38,6 @@ const ConfigurationPanel = () => {
       setState(stateData)
       setConfig(configData)
       setPrefs({
-        preferredUser: configData.plex.preferredUser || '',
         showControlsTimeout: configData.display?.showControlsTimeout || 4000,
         enableLastfmIdle: configData.display?.enableLastfmIdle !== false
       })
@@ -75,7 +75,6 @@ const ConfigurationPanel = () => {
         method: 'POST',
         body: {
           config: {
-            plex: { preferredUser: prefs.preferredUser || null },
             display: {
               showControlsTimeout: prefs.showControlsTimeout,
               enableLastfmIdle: prefs.enableLastfmIdle
@@ -218,18 +217,16 @@ const ConfigurationPanel = () => {
         <p className="phone-small">Per scollegare Last.fm svuota lo username e salva.</p>
       </section>
 
+      {/* Filtri */}
+      <section className="phone-section">
+        <h2>Filtri</h2>
+        <FiltersForm initialFilters={config.filters} onError={handleError} />
+      </section>
+
       {/* Preferenze */}
       <section className="phone-section">
         <h2>Schermo</h2>
         <form className="phone-block" onSubmit={savePrefs}>
-          <label htmlFor="preferred-user">Utente Plex preferito (facoltativo)</label>
-          <input
-            id="preferred-user"
-            value={prefs.preferredUser}
-            onChange={e => setPrefs({ ...prefs, preferredUser: e.target.value })}
-            placeholder="Vuoto = qualsiasi utente"
-            autoCapitalize="none"
-          />
           <label htmlFor="controls-timeout">Durata dei controlli a schermo (secondi)</label>
           <input
             id="controls-timeout"

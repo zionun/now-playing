@@ -14,6 +14,7 @@ import { ConfigService } from './services/ConfigService.js';
 import { LastfmService } from './services/LastfmService.js';
 import { PlexAuthService } from './services/PlexAuthService.js';
 import { DeviceSetupService } from './services/DeviceSetupService.js';
+import { filterSessions, hasActiveFilters, normalizeFilters, SeenRegistry } from './services/sessionFilters.js';
 import lastfmRouter, { setLastfmService } from './routes/lastfm.js';
 import configRouter, { setConfigService } from './routes/config.js';
 import authRouter, { setAuthServices } from './routes/auth.js';
@@ -50,6 +51,9 @@ function buildConfig(currentAppConfig) {
     // Configurazione client
     CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
 
+    // Filtri su LAN, utente e player (vedi services/sessionFilters.js)
+    FILTERS: normalizeFilters(currentAppConfig.filters),
+
     // Configurazione Last.fm
     LASTFM: {
       username: currentAppConfig.lastfm?.username || '',
@@ -61,6 +65,12 @@ function buildConfig(currentAppConfig) {
 }
 
 let CONFIG = buildConfig(appConfig);
+
+// Utenti e player visti nelle sessioni (prima dei filtri): proposti in /config
+const seenRegistry = new SeenRegistry();
+// Player ammessi dai filtri nell'ultima lettura delle sessioni: le notifiche
+// in tempo reale di Plex degli altri player vengono ignorate.
+let allowedMachineIds = new Set();
 
 // 📋 HOT-RELOAD - Rilegge la config da disco dopo un salvataggio da /config,
 // così le modifiche hanno effetto subito senza dover riavviare il processo.
@@ -246,8 +256,18 @@ async function getActiveSessions() {
       // continua ad accodarne altre senza che nessuna finisca mai.
       timeout: 8000
     });
-    
-    return response.data;
+
+    // I filtri si applicano qui, prima di ogni altra elaborazione: ciò che
+    // viene scartato non compare mai (player primario, selettore, pausa).
+    seenRegistry.record(response.data);
+    const filtered = filterSessions(response.data, CONFIG.FILTERS);
+    const metadata = filtered?.MediaContainer?.Metadata;
+    allowedMachineIds = new Set(
+      (Array.isArray(metadata) ? metadata : metadata ? [metadata] : [])
+        .map(item => item?.Player?.machineIdentifier)
+        .filter(Boolean)
+    );
+    return filtered;
   } catch (error) {
     console.error('❌ Errore recupero sessioni:', error.message);
     if (error.response?.status === 401) {
@@ -971,6 +991,74 @@ app.post('/api/plex/test-connection', deviceSetupService.requireSession, async (
   }
 });
 
+// Opzioni per i filtri mostrate in /config: utenti del server Plex e player
+// noti (dal server, da plex.tv e dalle sessioni viste di recente).
+app.get('/api/config/filter-options', deviceSetupService.requireSession, async (req, res) => {
+  const users = new Map();
+  const players = new Map();
+  const addPlayer = (machineIdentifier, data) => {
+    if (!machineIdentifier) return;
+    const id = String(machineIdentifier);
+    players.set(id, { machineIdentifier: id, ...players.get(id), ...data });
+  };
+
+  if (CONFIG.PLEX_SERVER_URL && CONFIG.PLEX_TOKEN) {
+    const plexGet = path => axios.get(`${CONFIG.PLEX_SERVER_URL}${path}`, {
+      headers: { 'X-Plex-Token': CONFIG.PLEX_TOKEN, 'Accept': 'application/json' },
+      timeout: 5000
+    });
+
+    const [accounts, clients, resources] = await Promise.allSettled([
+      plexGet('/accounts'),
+      plexGet('/clients'),
+      plexAuthService.getPlayerResources(CONFIG.PLEX_TOKEN)
+    ]);
+
+    if (accounts.status === 'fulfilled') {
+      const list = accounts.value.data?.MediaContainer?.Account || [];
+      for (const account of Array.isArray(list) ? list : [list]) {
+        // L'account 0 è quello di sistema del server, non un utente reale
+        if (account?.id === undefined || String(account.id) === '0' || !account.name) continue;
+        users.set(String(account.id), { id: String(account.id), title: account.name });
+      }
+    }
+    if (clients.status === 'fulfilled') {
+      const list = clients.value.data?.MediaContainer?.Server || [];
+      for (const client of Array.isArray(list) ? list : [list]) {
+        addPlayer(client?.machineIdentifier, { title: client.name, product: client.product || '' });
+      }
+    }
+    if (resources.status === 'fulfilled') {
+      for (const player of resources.value) {
+        addPlayer(player.machineIdentifier, { title: player.title, product: player.product });
+      }
+    }
+  }
+
+  for (const user of seenRegistry.recentUsers()) {
+    users.set(user.id, { id: user.id, title: user.title, ...users.get(user.id) });
+  }
+  for (const player of seenRegistry.recentPlayers()) {
+    // I nomi visti nelle sessioni sono i più aggiornati
+    addPlayer(player.machineIdentifier, { title: player.title, product: player.product, local: player.local });
+  }
+
+  // Gli elementi già selezionati restano sempre in elenco, anche se ora
+  // non sono raggiungibili
+  for (const id of CONFIG.FILTERS.users) {
+    if (!users.has(id)) users.set(id, { id, title: `Utente ${id} (non trovato)` });
+  }
+  for (const id of CONFIG.FILTERS.players) {
+    if (!players.has(id)) addPlayer(id, { title: `Player ${id.slice(0, 8)}… (non trovato)`, product: '' });
+  }
+
+  const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '');
+  res.json({
+    users: [...users.values()].sort(byTitle),
+    players: [...players.values()].map(p => ({ product: '', ...p, title: p.title || p.product || p.machineIdentifier })).sort(byTitle)
+  });
+});
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -1471,6 +1559,10 @@ function connectToPlexWebSocket() {
           : [eventData.NotificationContainer.PlaySessionStateNotification];
           
         for (const notification of notifications) {
+          // Player escluso dai filtri: la notifica non deve spostare nulla
+          if (hasActiveFilters(CONFIG.FILTERS) && !allowedMachineIds.has(notification.clientIdentifier)) {
+            continue;
+          }
           if (notification.clientIdentifier && notification.ratingKey) {
             const machineId = notification.clientIdentifier;
             const ratingKey = notification.ratingKey;

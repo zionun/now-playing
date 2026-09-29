@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
 
 const WebSocketContext = createContext()
@@ -27,11 +27,12 @@ export const WebSocketProvider = ({ children }) => {
   // (es. token revocato mentre l'app è aperta).
   const [authRequired, setAuthRequired] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const [configVersion, setConfigVersion] = useState(0)
 
   useEffect(() => {
     fetch('/api/auth/state')
       .then(res => res.json())
-      .then(data => setAuthRequired(!data.configured))
+      .then(data => setAuthRequired(!data.setupComplete))
       .catch(() => {}) // il socket coprirà comunque lo stato non configurato
       .finally(() => setAuthChecked(true))
   }, [])
@@ -140,6 +141,11 @@ export const WebSocketProvider = ({ children }) => {
     })
 
     // Plex non configurato, oppure il token è stato revocato/è scaduto
+    // Configurazione cambiata dal telefono: chi dipende da essa si ricarica
+    socketConnection.on('configUpdated', () => {
+      setConfigVersion(v => v + 1)
+    })
+
     socketConnection.on('authRequired', () => {
       console.log('🔑 Login Plex richiesto')
       setAuthRequired(true)
@@ -165,13 +171,9 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
-  // Chiamato dalla schermata di login appena il server conferma che Plex è
-  // stato configurato, per tornare subito all'interfaccia normale senza
-  // aspettare il prossimo evento del socket.
-  const markAuthenticated = () => setAuthRequired(false)
-
-  // Chiamato dopo "Disconnetti Plex": la home deve tornare subito al login
-  const requireLogin = () => setAuthRequired(true)
+  // Chiamato dalla schermata con il QR appena il server conferma che il
+  // dispositivo è configurato, per tornare subito all'interfaccia normale.
+  const markAuthenticated = useCallback(() => setAuthRequired(false), [])
 
   const value = {
     socket,
@@ -181,8 +183,8 @@ export const WebSocketProvider = ({ children }) => {
     switchUser,
     authRequired,
     authChecked,
-    markAuthenticated,
-    requireLogin
+    configVersion,
+    markAuthenticated
   }
 
   return (

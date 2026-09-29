@@ -4,186 +4,255 @@ const router = express.Router()
 
 let configService = null
 let plexAuthService = null
-let lastfmLinkService = null
+let setupService = null
 let onConfigUpdated = null
 
-export function setAuthServices(cs, pas, reloadCallback, lls) {
+export function setAuthServices(cs, pas, reloadCallback, dss) {
   configService = cs
   plexAuthService = pas
   onConfigUpdated = reloadCallback
-  lastfmLinkService = lls
+  setupService = dss
 }
 
-// Lo stato attuale: se Plex è già configurato con un token e se Last.fm è
-// collegato (per decidere se proporre lo step 2 dopo il login Plex)
+const MIN_PASSWORD_LENGTH = 4
+
+async function applyConfig() {
+  if (onConfigUpdated) {
+    await onConfigUpdated()
+  }
+}
+
+// Plex rimanda il browser a questo indirizzo dopo l'accesso: deve essere
+// una pagina di questa app, non un sito qualsiasi.
+function safeForwardUrl(value) {
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// 📋 STATO - Usato dal kiosk (mostrare il QR di configurazione iniziale?) e
+// dalle pagine sul telefono (quali step mancano?)
 router.get('/state', (req, res) => {
   const config = configService.getConfig()
+  const hasPassword = configService.hasConfigPassword()
+  const plexConnected = !!(config.plex?.url && config.plex?.token)
   res.json({
-    configured: !!(config.plex?.url && config.plex?.token),
-    lastfmConfigured: !!(config.lastfm?.username && lastfmLinkService.getApiKey())
+    hasPassword,
+    plexConnected,
+    plexServerName: config.plex?.serverName || '',
+    canResetPassword: !!config.plex?.accountId,
+    lastfmConfigured: !!(config.lastfm?.username && setupService.getLastfmApiKey()),
+    lastfmUsername: config.lastfm?.username || '',
+    hasLastfmApiKey: !!setupService.getLastfmApiKey(),
+    setupComplete: hasPassword && plexConnected
   })
 })
 
-// Avvia il login: crea un PIN Plex e il QR code corrispondente
-router.post('/pin', async (req, res) => {
+// QR mostrato dal kiosk: configurazione iniziale o configurazione generale
+router.post('/qr', async (req, res) => {
   try {
-    const pin = await plexAuthService.createPin()
-    res.json(pin)
+    const path = req.body?.target === 'config' ? '/config' : '/setup'
+    res.json(await setupService.createQr(path))
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 📋 PASSWORD
+
+// Prima configurazione: crea la password (possibile solo se non esiste)
+router.post('/password', async (req, res) => {
+  try {
+    if (configService.hasConfigPassword()) {
+      return res.status(409).json({ error: 'La password è già stata impostata' })
+    }
+    const password = String(req.body?.password || '')
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `La password deve avere almeno ${MIN_PASSWORD_LENGTH} caratteri` })
+    }
+    await configService.setConfigPassword(password)
+    res.json({ session: setupService.createSession() })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+router.post('/login', async (req, res) => {
+  try {
+    if (!configService.hasConfigPassword()) {
+      return res.status(409).json({ error: 'Password non ancora impostata', needsSetup: true })
+    }
+    const valid = await configService.verifyConfigPassword(String(req.body?.password || ''))
+    if (!valid) {
+      return res.status(401).json({ error: 'Password non corretta' })
+    }
+    res.json({ session: setupService.createSession() })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+router.post('/password/change', requireSession, async (req, res) => {
+  try {
+    const password = String(req.body?.password || '')
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `La password deve avere almeno ${MIN_PASSWORD_LENGTH} caratteri` })
+    }
+    await configService.setConfigPassword(password)
+    // Le altre sessioni aperte con la vecchia password non valgono più
+    setupService.clearSessions()
+    res.json({ session: setupService.createSession() })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+// "Password dimenticata": si rifà l'accesso a Plex con lo stesso account
+// che ha configurato il dispositivo; se coincide si apre una sessione per
+// impostare una nuova password.
+router.post('/reset/pin', async (req, res) => {
+  try {
+    if (!configService.getConfig().plex?.accountId) {
+      return res.status(409).json({ error: 'Nessun account Plex associato al dispositivo' })
+    }
+    res.json(await plexAuthService.createPin(safeForwardUrl(req.body?.forwardUrl)))
+  } catch (error) {
+    res.status(502).json({ error: 'Impossibile contattare plex.tv, riprova tra poco' })
+  }
+})
+
+router.get('/reset/pin/:id', async (req, res) => {
+  try {
+    const status = await plexAuthService.checkPin(req.params.id)
+    if (!status.authenticated) return res.json({ authenticated: false })
+
+    const { account } = plexAuthService.consumePin(req.params.id)
+    if (account.id !== configService.getConfig().plex?.accountId) {
+      return res.status(403).json({
+        error: `L'account Plex "${account.username}" non è quello usato per configurare il dispositivo`
+      })
+    }
+    res.json({ authenticated: true, session: setupService.createSession() })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+// 📋 PLEX (richiede sessione)
+
+router.post('/plex/pin', requireSession, async (req, res) => {
+  try {
+    res.json(await plexAuthService.createPin(safeForwardUrl(req.body?.forwardUrl)))
   } catch (error) {
     console.error('❌ Errore creazione PIN Plex:', error.message)
     res.status(502).json({ error: 'Impossibile contattare plex.tv, riprova tra poco' })
   }
 })
 
-// Il client chiama questo endpoint ogni 1-2s finché il PIN non è autorizzato
-router.get('/pin/:id', async (req, res) => {
+router.get('/plex/pin/:id', requireSession, async (req, res) => {
   try {
-    const result = await plexAuthService.checkPin(req.params.id)
-    res.json(result)
+    res.json(await plexAuthService.checkPin(req.params.id))
   } catch (error) {
     res.status(400).json({ error: error.message })
   }
 })
 
-// L'utente ha scelto (o gli è stato scelto in automatico) un server Plex
-// tra quelli visibili sul suo account
-router.post('/select-server', async (req, res) => {
+router.post('/plex/select', requireSession, async (req, res) => {
   try {
-    const { password, url, port, token } = req.body
+    const { pinId, machineIdentifier } = req.body || {}
+    const { account, servers } = plexAuthService.consumePin(pinId)
 
-    const isValidPassword = await configService.verifyConfigPassword(password)
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'È impostata una password di configurazione' })
+    // Una volta configurato, il dispositivo resta legato al suo account
+    // Plex: ricollegarsi o cambiare server è possibile solo con lo stesso.
+    const boundAccountId = configService.getConfig().plex?.accountId
+    if (boundAccountId && account.id !== boundAccountId) {
+      return res.status(403).json({
+        error: `L'account Plex "${account.username}" non è quello usato per configurare il dispositivo`
+      })
     }
-    if (!url || !token) {
+
+    const server = servers.find(s => s.machineIdentifier === machineIdentifier)
+    if (!server) {
       return res.status(400).json({ error: 'Server Plex non valido' })
     }
 
-    await configService.setPlexAuth({ url, port, token })
-    if (onConfigUpdated) {
-      await onConfigUpdated()
-    }
+    await configService.setPlexAuth({
+      url: server.url,
+      port: server.port,
+      token: server.accessToken,
+      accountId: account.id,
+      serverName: server.name,
+      machineIdentifier: server.machineIdentifier
+    })
+    await applyConfig()
 
+    res.json({ success: true, serverName: server.name })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+router.post('/plex/disconnect', requireSession, async (req, res) => {
+  try {
+    await configService.clearPlexToken()
+    await applyConfig()
     res.json({ success: true })
   } catch (error) {
     res.status(400).json({ error: error.message })
   }
 })
 
-// Disconnette l'account Plex corrente (per rifare il login, es. altro utente)
-router.post('/logout', async (req, res) => {
+// 📋 RIPRISTINO DEL DISPOSITIVO (richiede sessione e di nuovo la password)
+// Azzera tutta la configurazione: il kiosk torna al QR di configurazione
+// iniziale e il dispositivo può essere legato a un altro account Plex.
+router.post('/reset-device', requireSession, async (req, res) => {
   try {
-    const { password } = req.body
-    const isValidPassword = await configService.verifyConfigPassword(password)
-    if (!isValidPassword) {
+    const valid = await configService.verifyConfigPassword(String(req.body?.password || ''))
+    if (!valid) {
       return res.status(401).json({ error: 'Password non corretta' })
     }
-
-    await configService.clearPlexToken()
-    if (onConfigUpdated) {
-      await onConfigUpdated()
-    }
-
+    await configService.resetToDefaults()
+    setupService.clearSessions()
+    await applyConfig()
     res.json({ success: true })
   } catch (error) {
     res.status(400).json({ error: error.message })
   }
 })
 
-// 📋 STEP 2 - COLLEGAMENTO LAST.FM DAL TELEFONO
+// 📋 LAST.FM (richiede sessione)
 
-// Il kiosk chiede un nuovo link e il QR che lo codifica
-router.post('/lastfm/link', async (req, res) => {
+router.post('/lastfm', requireSession, async (req, res) => {
   try {
-    res.json(await lastfmLinkService.createLink())
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
+    const username = String(req.body?.username || '').trim()
+    const apiKey = String(req.body?.apiKey || '').trim() || setupService.getLastfmApiKey()
 
-// Il kiosk interroga questo endpoint finché il telefono non ha completato
-router.get('/lastfm/link/:token', (req, res) => {
-  const link = lastfmLinkService.getLink(req.params.token)
-  if (!link) return res.status(404).json({ error: 'Link scaduto' })
-  res.json({ done: link.done })
-})
-
-// La pagina aperta dal telefono scansionando il QR
-router.get('/lastfm/connect', (req, res) => {
-  const token = String(req.query.t || '')
-  if (!lastfmLinkService.getLink(token)) {
-    return res.status(410).send(renderPhonePage({ expired: true }))
-  }
-  res.send(renderPhonePage({ token, needsApiKey: !lastfmLinkService.getApiKey() }))
-})
-
-router.post('/lastfm/connect', express.urlencoded({ extended: false }), async (req, res) => {
-  const { t: token, username, apiKey } = req.body
-  try {
-    const name = await lastfmLinkService.completeLink(token, { username, apiKey })
-    if (onConfigUpdated) {
-      await onConfigUpdated()
+    // Username vuoto = scollega Last.fm
+    if (!username) {
+      await configService.updateConfig({ lastfm: { username: '' } })
+      await applyConfig()
+      return res.json({ success: true, username: '' })
     }
-    res.send(renderPhonePage({ doneAs: name }))
+    if (!apiKey) {
+      return res.status(400).json({ error: 'Serve una API key Last.fm' })
+    }
+
+    const name = await setupService.validateLastfmUser(username, apiKey)
+    await configService.updateConfig({ lastfm: { username: name, apiKey } })
+    await applyConfig()
+    res.json({ success: true, username: name })
   } catch (error) {
-    res.status(400).send(renderPhonePage({
-      token,
-      username,
-      needsApiKey: !lastfmLinkService.getApiKey(),
-      error: error.message
-    }))
+    res.status(400).json({ error: error.message })
   }
 })
 
-const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => (
-  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-))
-
-function renderPhonePage({ token, username, needsApiKey, error, doneAs, expired }) {
-  let body
-  if (expired) {
-    body = '<p>Questo link è scaduto. Genera un nuovo QR code dallo schermo.</p>'
-  } else if (doneAs) {
-    body = `<p class="ok">✓ Last.fm collegato come <strong>${escapeHtml(doneAs)}</strong>.</p>
-      <p>Puoi chiudere questa pagina.</p>`
-  } else {
-    body = `<form method="post" action="/api/auth/lastfm/connect">
-        <input type="hidden" name="t" value="${escapeHtml(token)}">
-        <label for="username">Username Last.fm</label>
-        <input id="username" name="username" value="${escapeHtml(username)}"
-          autocapitalize="none" autocorrect="off" autocomplete="username" required autofocus>
-        ${needsApiKey ? `<label for="apiKey">API key Last.fm</label>
-        <input id="apiKey" name="apiKey" autocapitalize="none" autocorrect="off" required>
-        <p class="hint">Si ottiene gratis su last.fm/api/account/create</p>` : ''}
-        ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
-        <button type="submit">Collega</button>
-      </form>`
-  }
-
-  return `<!doctype html>
-<html lang="it">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Collega Last.fm</title>
-<style>
-  body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee;
-    display: flex; justify-content: center; padding: 2rem 1rem; }
-  main { width: 100%; max-width: 380px; }
-  h1 { font-size: 1.4rem; margin: 0 0 1.5rem; }
-  form { display: flex; flex-direction: column; gap: 0.6rem; }
-  label { font-size: 0.9rem; color: #aaa; }
-  input { font-size: 1.1rem; padding: 0.75rem; border-radius: 8px; border: 1px solid #333;
-    background: #1c1c1c; color: #fff; }
-  button { margin-top: 0.8rem; font-size: 1.1rem; padding: 0.8rem; border: 0; border-radius: 8px;
-    background: #d51007; color: #fff; font-weight: 600; }
-  .hint { font-size: 0.8rem; color: #888; margin: 0; }
-  .error { color: #ff6b6b; margin: 0; }
-  .ok { font-size: 1.1rem; }
-</style>
-</head>
-<body><main><h1>Collega Last.fm</h1>${body}</main></body>
-</html>`
+// Il servizio viene iniettato dopo l'import delle route: il middleware lo
+// risolve a ogni richiesta.
+function requireSession(req, res, next) {
+  return setupService.requireSession(req, res, next)
 }
 
 export default router

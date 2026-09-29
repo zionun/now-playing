@@ -109,8 +109,41 @@ export class ConfigService {
     await this.saveConfig()
   }
 
-  async setPlexAuth({ url, port, token }) {
-    this.config.plex = { ...this.config.plex, url, port: port || 32400, token }
+  // accountId/serverName/machineIdentifier: l'account Plex che ha
+  // configurato il dispositivo (serve per reimpostare la password) e il
+  // server scelto (mostrato nella configurazione).
+  async setPlexAuth({ url, port, token, accountId, serverName, machineIdentifier }) {
+    this.config.plex = {
+      ...this.config.plex,
+      url,
+      port: port || 32400,
+      token,
+      ...(accountId !== undefined && { accountId }),
+      ...(serverName !== undefined && { serverName }),
+      ...(machineIdentifier !== undefined && { machineIdentifier })
+    }
+    await this.saveConfig()
+  }
+
+  async setPlexAccountId(accountId) {
+    this.config.plex = { ...this.config.plex, accountId }
+    await this.saveConfig()
+  }
+
+  // Ripristino di fabbrica: si torna alla configurazione iniziale, compresi
+  // password e legame con l'account Plex.
+  async resetToDefaults() {
+    this.config = this.getDefaultConfig()
+    await this.saveConfig()
+  }
+
+  hasConfigPassword() {
+    return !!this.config.users?.configPassword
+  }
+
+  async setConfigPassword(password) {
+    const hash = await bcrypt.hash(password, 12)
+    this.config.users = { ...this.config.users, configPassword: hash }
     await this.saveConfig()
   }
 

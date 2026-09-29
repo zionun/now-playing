@@ -1,470 +1,332 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useWebSocket } from '../context/WebSocketContext'
-import './ConfigurationPanel.css'
+import React, { useCallback, useEffect, useState } from 'react'
+import { api, session, SessionExpiredError, useSessionExpired } from './phone/api'
+import PhonePage from './phone/PhonePage'
+import PasswordGate, { NewPasswordForm } from './phone/PasswordGate'
+import PlexConnect, { hasPendingPlexPin } from './phone/PlexConnect'
+import LastfmForm from './phone/LastfmForm'
 
+// Configurazione generale, aperta dal telefono con il QR che il kiosk mostra
+// toccando l'icona ⚙︎. Richiede sempre la password del dispositivo.
 const ConfigurationPanel = () => {
-  const navigate = useNavigate()
-  const { requireLogin } = useWebSocket()
-  
-  // Enable scrolling for config page
-  useEffect(() => {
-    document.body.style.overflow = 'auto'
-    document.documentElement.style.overflow = 'auto'
-    
-    return () => {
-      // Restore original overflow when leaving config page
-      document.body.style.overflow = 'hidden'
-      document.documentElement.style.overflow = 'hidden'
-    }
-  }, [])
+  const [state, setState] = useState(null)
   const [config, setConfig] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [password, setPassword] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    plex: {
-      url: '',
-      port: 32400,
-      token: '',
-      preferredUser: ''
-    },
-    lastfm: {
-      username: '',
-      apiKey: '',
-      apiSecret: ''
-    },
-    display: {
-      showControlsTimeout: 4000,
-      enableLastfmIdle: true
-    },
-    users: {
-      configPassword: ''
-    }
-  })
 
-  useEffect(() => {
-    loadConfig()
+  const [changingPlex, setChangingPlex] = useState(() => hasPendingPlexPin('connect'))
+  const [prefs, setPrefs] = useState(null)
+  const [advanced, setAdvanced] = useState({ url: '', port: 32400, token: '' })
+  const [prefsMessage, setPrefsMessage] = useState('')
+  const [advancedMessage, setAdvancedMessage] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetError, setResetError] = useState('')
+
+  useSessionExpired(useCallback(() => setAuthenticated(false), []))
+
+  const handleError = useCallback(err => {
+    if (err instanceof SessionExpiredError) {
+      setAuthenticated(false)
+    }
+    setError(err.message)
   }, [])
 
-  const loadConfig = async () => {
+  const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/config')
-      if (response.ok) {
-        const configData = await response.json()
-        setConfig(configData)
-        setFormData({
-          plex: {
-            url: configData.plex.url || '',
-            port: configData.plex.port || 32400,
-            token: configData.plex.token === '***' ? '' : configData.plex.token || '',
-            preferredUser: configData.plex.preferredUser || ''
-          },
-          lastfm: {
-            username: configData.lastfm.username || '',
-            apiKey: configData.lastfm.apiKey === '***' ? '' : configData.lastfm.apiKey || '',
-            apiSecret: configData.lastfm.apiSecret === '***' ? '' : configData.lastfm.apiSecret || ''
-          },
-          display: {
-            showControlsTimeout: configData.display?.showControlsTimeout || 4000,
-            enableLastfmIdle: configData.display?.enableLastfmIdle !== false
-          },
-          users: {
-            configPassword: ''
-          }
-        })
-        
-        // If no password is set, authenticate immediately
-        if (!configData.hasPassword) {
-          setIsAuthenticated(true)
-        }
-      }
-    } catch (err) {
-      setError('Errore nel caricamento della configurazione')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAuthentication = async (e) => {
-    e.preventDefault()
-    setError('')
-    
-    try {
-      const response = await fetch('/api/config/verify-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+      const [stateData, configData] = await Promise.all([api('/api/auth/state'), api('/api/config')])
+      setState(stateData)
+      setConfig(configData)
+      setPrefs({
+        preferredUser: configData.plex.preferredUser || '',
+        showControlsTimeout: configData.display?.showControlsTimeout || 4000,
+        enableLastfmIdle: configData.display?.enableLastfmIdle !== false
       })
-      
-      const result = await response.json()
-      
-      if (result.valid) {
-        setIsAuthenticated(true)
-      } else {
-        setError('Password non corretta')
-      }
+      setAdvanced({ url: configData.plex.url || '', port: configData.plex.port || 32400, token: '' })
+      setAuthenticated(true)
+      setError('')
     } catch (err) {
-      setError('Errore di autenticazione')
+      handleError(err)
+    }
+  }, [handleError])
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const stateData = await api('/api/auth/state')
+        setState(stateData)
+        if (!stateData.hasPassword) {
+          // Mai configurato: si passa dalla configurazione iniziale
+          window.location.replace('/setup')
+          return
+        }
+        if (session.get()) await load()
+      } catch (err) {
+        handleError(err)
+      }
+    }
+    init()
+  }, [load, handleError])
+
+  const savePrefs = async e => {
+    e.preventDefault()
+    setPrefsMessage('')
+    try {
+      await api('/api/config', {
+        method: 'POST',
+        body: {
+          config: {
+            plex: { preferredUser: prefs.preferredUser || null },
+            display: {
+              showControlsTimeout: prefs.showControlsTimeout,
+              enableLastfmIdle: prefs.enableLastfmIdle
+            }
+          }
+        }
+      })
+      setPrefsMessage('Preferenze salvate')
+    } catch (err) {
+      handleError(err)
     }
   }
 
-  const handleInputChange = (section, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }))
-    setError('')
-    setSuccess('')
+  const saveAdvanced = async e => {
+    e.preventDefault()
+    setAdvancedMessage('')
+    try {
+      await api('/api/config', {
+        method: 'POST',
+        body: { config: { plex: { url: advanced.url, port: advanced.port, token: advanced.token } } }
+      })
+      setAdvancedMessage('Impostazioni Plex salvate')
+      await load()
+    } catch (err) {
+      handleError(err)
+    }
   }
 
   const testPlexConnection = async () => {
-    setError('')
-    setSuccess('')
-    
+    setAdvancedMessage('')
     try {
-      const response = await fetch('/api/plex/test-connection', {
+      const result = await api('/api/plex/test-connection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: formData.plex.url,
-          port: formData.plex.port,
-          token: formData.plex.token
-        })
+        body: advanced.token ? advanced : { url: advanced.url, port: advanced.port }
       })
-      
-      if (response.ok) {
-        const result = await response.json()
-        setSuccess(`Connessione Plex riuscita! Server: ${result.server}`)
-      } else {
-        const error = await response.json()
-        setError(`Errore connessione Plex: ${error.error}`)
-      }
+      setAdvancedMessage(`Connessione riuscita: ${result.server}`)
     } catch (err) {
-      setError('Errore nel test della connessione Plex')
+      setAdvancedMessage(`Connessione non riuscita: ${err.message}`)
     }
   }
 
   const disconnectPlex = async () => {
-    setError('')
-    setSuccess('')
-
+    if (!window.confirm('Disconnettere Plex? Lo schermo tornerà alla configurazione iniziale.')) return
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      })
-
-      if (response.ok) {
-        // Senza Plex l'app non è utilizzabile: torna subito al login con QR
-        requireLogin()
-        navigate('/')
-      } else {
-        const error = await response.json()
-        setError(`Errore nella disconnessione: ${error.error}`)
-      }
+      await api('/api/auth/plex/disconnect', { method: 'POST' })
+      // Senza Plex il dispositivo non è utilizzabile: si riparte dal setup
+      window.location.href = '/setup'
     } catch (err) {
-      setError('Errore nella disconnessione da Plex')
+      handleError(err)
     }
   }
 
-  const testLastfmConnection = async () => {
-    setError('')
-    setSuccess('')
-    
-    try {
-      const response = await fetch('/api/lastfm/test-connection', {
-        method: 'POST'
-      })
-      
-      if (response.ok) {
-        const result = await response.json()
-        setSuccess(`Connessione Last.fm riuscita! Utente: ${result.username}`)
-      } else {
-        const error = await response.json()
-        setError(`Errore connessione Last.fm: ${error.error}`)
-      }
-    } catch (err) {
-      setError('Errore nel test della connessione Last.fm')
-    }
+  const changePassword = async password => {
+    const result = await api('/api/auth/password/change', { method: 'POST', body: { password } })
+    session.set(result.session)
+    setPasswordMessage('Password aggiornata')
   }
 
-  const handleSubmit = async (e) => {
+  const resetDevice = async e => {
     e.preventDefault()
-    setSaving(true)
-    setError('')
-    setSuccess('')
-    
+    setResetError('')
+    if (!window.confirm('Ripristinare il dispositivo? Verranno cancellate tutta la configurazione, la password e il collegamento all\'account Plex.')) return
     try {
-      // Prepare config data, excluding empty password
-      const configToSave = {
-        ...formData,
-        users: formData.users.configPassword ? formData.users : undefined
-      }
-      
-      const response = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password,
-          config: configToSave
-        })
-      })
-      
-      if (response.ok) {
-        setSuccess('Configurazione salvata con successo!')
-        setTimeout(() => {
-          navigate('/')
-        }, 2000)
-      } else {
-        const error = await response.json()
-        setError(`Errore nel salvataggio: ${error.error}`)
-      }
+      await api('/api/auth/reset-device', { method: 'POST', body: { password: resetPassword } })
+      session.clear()
+      window.location.href = '/setup'
     } catch (err) {
-      setError('Errore nel salvataggio della configurazione')
-    } finally {
-      setSaving(false)
+      if (err instanceof SessionExpiredError) handleError(err)
+      else setResetError(err.message)
     }
   }
 
-  if (loading) {
+  const logout = () => {
+    session.clear()
+    setAuthenticated(false)
+  }
+
+  if (!state) {
     return (
-      <div className="config-container" style={{ height: '100vh', overflowY: 'auto' }}>
-        <div className="config-loading">
-          <div className="spinner"></div>
-          <p>Caricamento configurazione...</p>
-        </div>
-      </div>
+      <PhonePage title="Configurazione">
+        {error ? <p className="phone-error">{error}</p> : <div className="phone-waiting"><div className="spinner" /></div>}
+      </PhonePage>
     )
   }
 
-  if (!isAuthenticated) {
+  if (!authenticated || !config || !prefs) {
     return (
-      <div className="config-container" style={{ height: '100vh', overflowY: 'auto' }}>
-        <div className="auth-form">
-          <h1>Accesso Configurazione</h1>
-          <form onSubmit={handleAuthentication}>
-            <div className="form-group">
-              <label htmlFor="password">Password:</label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            
-            {error && <div className="error-message">{error}</div>}
-            
-            <button type="submit" className="btn btn-primary">
-              Accedi
-            </button>
-            
-            <button 
-              type="button" 
-              onClick={() => navigate('/')}
-              className="btn btn-secondary"
-            >
-              Torna alla home
-            </button>
-          </form>
-        </div>
-      </div>
+      <PhonePage title="Configurazione">
+        <PasswordGate canResetPassword={state.canResetPassword} onAuthenticated={load} />
+      </PhonePage>
     )
   }
 
   return (
-    <div className="config-container" style={{ height: '100vh', overflowY: 'auto' }}>
-      <div className="config-header">
-        <h1>Configurazione Now Playing</h1>
-        <button onClick={() => navigate('/')} className="btn btn-secondary">
-          Torna alla home
-        </button>
-      </div>
+    <PhonePage title="Configurazione">
+      {error && <p className="phone-error">{error}</p>}
 
-      <form onSubmit={handleSubmit} className="config-form">
-        {/* Plex Configuration */}
-        <section className="config-section">
-          <h2>Configurazione Plex</h2>
-          
-          <div className="form-group">
-            <label htmlFor="plex-url">URL Server Plex:</label>
-            <input
-              type="text"
-              id="plex-url"
-              value={formData.plex.url}
-              onChange={(e) => handleInputChange('plex', 'url', e.target.value)}
-              placeholder="192.168.1.100"
-              required
-            />
+      {/* Plex */}
+      <section className="phone-section">
+        <h2>Plex</h2>
+        {state.plexConnected ? (
+          <p className="phone-status">Collegato a {config.plex.serverName || config.plex.url}</p>
+        ) : (
+          <p className="phone-status off">Non collegato</p>
+        )}
+
+        {changingPlex ? (
+          <PlexConnect
+            bound={state.canResetPassword}
+            onConnected={async () => { setChangingPlex(false); await load() }}
+            onCancel={() => setChangingPlex(false)}
+          />
+        ) : (
+          <div className="phone-block">
+            <button className="phone-btn phone-btn-secondary" onClick={() => setChangingPlex(true)}>
+              {state.plexConnected ? 'Ricollega Plex o cambia server' : 'Accedi con Plex'}
+            </button>
+            {state.plexConnected && (
+              <button className="phone-btn phone-btn-danger" onClick={disconnectPlex}>
+                Disconnetti Plex
+              </button>
+            )}
           </div>
-          
-          <div className="form-group">
-            <label htmlFor="plex-port">Porta:</label>
+        )}
+      </section>
+
+      {/* Last.fm */}
+      <section className="phone-section">
+        <h2>Last.fm</h2>
+        {state.lastfmConfigured ? (
+          <p className="phone-status">Collegato come {state.lastfmUsername}</p>
+        ) : (
+          <p className="phone-status off">Non collegato</p>
+        )}
+        <LastfmForm
+          initialUsername={state.lastfmUsername}
+          hasApiKey={state.hasLastfmApiKey}
+          onSaved={() => load()}
+        />
+        <p className="phone-small">Per scollegare Last.fm svuota lo username e salva.</p>
+      </section>
+
+      {/* Preferenze */}
+      <section className="phone-section">
+        <h2>Schermo</h2>
+        <form className="phone-block" onSubmit={savePrefs}>
+          <label htmlFor="preferred-user">Utente Plex preferito (facoltativo)</label>
+          <input
+            id="preferred-user"
+            value={prefs.preferredUser}
+            onChange={e => setPrefs({ ...prefs, preferredUser: e.target.value })}
+            placeholder="Vuoto = qualsiasi utente"
+            autoCapitalize="none"
+          />
+          <label htmlFor="controls-timeout">Durata dei controlli a schermo (secondi)</label>
+          <input
+            id="controls-timeout"
+            type="number"
+            min="1"
+            max="10"
+            step="0.5"
+            value={prefs.showControlsTimeout / 1000}
+            onChange={e => setPrefs({ ...prefs, showControlsTimeout: Math.round(parseFloat(e.target.value || 0) * 1000) })}
+          />
+          <label className="phone-checkbox">
             <input
-              type="number"
+              type="checkbox"
+              checked={prefs.enableLastfmIdle}
+              onChange={e => setPrefs({ ...prefs, enableLastfmIdle: e.target.checked })}
+            />
+            Mostra i dati Last.fm quando non c'è musica
+          </label>
+          {prefsMessage && <p className="phone-success">{prefsMessage}</p>}
+          <button type="submit" className="phone-btn phone-btn-primary">Salva preferenze</button>
+        </form>
+      </section>
+
+      {/* Password */}
+      <section className="phone-section">
+        <h2>Password del dispositivo</h2>
+        {passwordMessage && <p className="phone-success">{passwordMessage}</p>}
+        <NewPasswordForm submitLabel="Cambia password" onSubmit={changePassword} />
+      </section>
+
+      {/* Avanzate */}
+      <section className="phone-section">
+        <details>
+          <summary>Avanzate: server Plex manuale</summary>
+          <form className="phone-block" onSubmit={saveAdvanced}>
+            <p className="phone-small">
+              Normalmente non serve: l'accesso con Plex imposta tutto da solo.
+            </p>
+            <label htmlFor="plex-url">Indirizzo del server</label>
+            <input
+              id="plex-url"
+              value={advanced.url}
+              onChange={e => setAdvanced({ ...advanced, url: e.target.value })}
+              placeholder="192.168.1.100"
+              autoCapitalize="none"
+            />
+            <label htmlFor="plex-port">Porta</label>
+            <input
               id="plex-port"
-              value={formData.plex.port}
-              onChange={(e) => handleInputChange('plex', 'port', parseInt(e.target.value))}
+              type="number"
               min="1"
               max="65535"
-              required
+              value={advanced.port}
+              onChange={e => setAdvanced({ ...advanced, port: parseInt(e.target.value, 10) || '' })}
             />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="plex-token">Token Plex:</label>
+            <label htmlFor="plex-token">Token Plex</label>
             <input
-              type="password"
               id="plex-token"
-              value={formData.plex.token}
-              onChange={(e) => handleInputChange('plex', 'token', e.target.value)}
-              placeholder={config?.plex?.token ? 'Lascia vuoto per non modificarlo' : 'Token di accesso Plex'}
+              type="password"
+              value={advanced.token}
+              onChange={e => setAdvanced({ ...advanced, token: e.target.value })}
+              placeholder={config.plex.token ? 'Lascia vuoto per non cambiarlo' : ''}
             />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="preferred-user">Utente preferito (opzionale):</label>
-            <input
-              type="text"
-              id="preferred-user"
-              value={formData.plex.preferredUser}
-              onChange={(e) => handleInputChange('plex', 'preferredUser', e.target.value)}
-              placeholder="Lascia vuoto per mostrare qualsiasi utente"
-            />
-          </div>
-          
-          <button type="button" onClick={testPlexConnection} className="btn btn-test">
-            Testa connessione Plex
-          </button>
-
-          {config?.plex?.token && (
-            <button type="button" onClick={disconnectPlex} className="btn btn-secondary">
-              Disconnetti Plex (rifai il login con QR code)
+            {advancedMessage && <p className="phone-hint">{advancedMessage}</p>}
+            <button type="button" className="phone-btn phone-btn-secondary" onClick={testPlexConnection}>
+              Testa connessione
             </button>
-          )}
-        </section>
+            <button type="submit" className="phone-btn phone-btn-primary">Salva</button>
+          </form>
+        </details>
+      </section>
 
-        {/* Last.fm Configuration */}
-        <section className="config-section">
-          <h2>Configurazione Last.fm (opzionale)</h2>
-          
-          <div className="form-group">
-            <label htmlFor="lastfm-username">Username Last.fm:</label>
-            <input
-              type="text"
-              id="lastfm-username"
-              value={formData.lastfm.username}
-              onChange={(e) => handleInputChange('lastfm', 'username', e.target.value)}
-              placeholder="Il tuo username Last.fm"
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="lastfm-apikey">API Key Last.fm:</label>
-            <input
-              type="text"
-              id="lastfm-apikey"
-              value={formData.lastfm.apiKey}
-              onChange={(e) => handleInputChange('lastfm', 'apiKey', e.target.value)}
-              placeholder="La tua API Key Last.fm"
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="lastfm-secret">API Secret Last.fm:</label>
-            <input
-              type="password"
-              id="lastfm-secret"
-              value={formData.lastfm.apiSecret}
-              onChange={(e) => handleInputChange('lastfm', 'apiSecret', e.target.value)}
-              placeholder="Il tuo API Secret Last.fm"
-            />
-          </div>
-          
-          <button type="button" onClick={testLastfmConnection} className="btn btn-test">
-            Testa connessione Last.fm
-          </button>
-        </section>
+      {/* Ripristino */}
+      <section className="phone-section">
+        <h2>Ripristina dispositivo</h2>
+        <form className="phone-block" onSubmit={resetDevice}>
+          <p className="phone-small">
+            Cancella tutta la configurazione: password, collegamento a Plex (anche l'account
+            associato), Last.fm e preferenze. Lo schermo tornerà al QR della configurazione
+            iniziale. Serve per esempio per usare un altro account Plex.
+          </p>
+          <label htmlFor="reset-password">Conferma con la password</label>
+          <input
+            id="reset-password"
+            type="password"
+            autoComplete="current-password"
+            value={resetPassword}
+            onChange={e => setResetPassword(e.target.value)}
+            required
+          />
+          {resetError && <p className="phone-error">{resetError}</p>}
+          <button type="submit" className="phone-btn phone-btn-danger">Ripristina dispositivo</button>
+        </form>
+      </section>
 
-        {/* Display Configuration */}
-        <section className="config-section">
-          <h2>Configurazione Display</h2>
-          
-          <div className="form-group">
-            <label htmlFor="controls-timeout">Timeout controlli (ms):</label>
-            <input
-              type="number"
-              id="controls-timeout"
-              value={formData.display.showControlsTimeout}
-              onChange={(e) => handleInputChange('display', 'showControlsTimeout', parseInt(e.target.value))}
-              min="1000"
-              max="10000"
-              step="500"
-            />
-          </div>
-          
-          <div className="form-group checkbox-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={formData.display.enableLastfmIdle}
-                onChange={(e) => handleInputChange('display', 'enableLastfmIdle', e.target.checked)}
-              />
-              Mostra dati Last.fm quando idle
-            </label>
-          </div>
-        </section>
-
-        {/* Security Configuration */}
-        <section className="config-section">
-          <h2>Sicurezza</h2>
-          
-          <div className="form-group">
-            <label htmlFor="config-password">Nuova password configurazione:</label>
-            <input
-              type="password"
-              id="config-password"
-              value={formData.users.configPassword}
-              onChange={(e) => handleInputChange('users', 'configPassword', e.target.value)}
-              placeholder="Lascia vuoto per non cambiare"
-            />
-          </div>
-        </section>
-
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">{success}</div>}
-
-        <div className="form-actions">
-          <button 
-            type="submit" 
-            disabled={saving}
-            className="btn btn-primary"
-          >
-            {saving ? 'Salvataggio...' : 'Salva configurazione'}
-          </button>
-          
-          <button 
-            type="button" 
-            onClick={() => navigate('/')}
-            className="btn btn-secondary"
-          >
-            Annulla
-          </button>
-        </div>
-      </form>
-    </div>
+      <button className="phone-link" onClick={logout}>Esci</button>
+    </PhonePage>
   )
 }
 

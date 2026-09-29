@@ -1,6 +1,5 @@
 import axios from 'axios'
 import crypto from 'crypto'
-import QRCode from 'qrcode'
 
 // 📋 LOGIN PLEX CON QR CODE - Stesso flusso "PIN" usato dalle app ufficiali
 // (TV, Plexamp): si genera un PIN, l'utente lo autorizza dal telefono
@@ -38,7 +37,10 @@ export class PlexAuthService {
     }
   }
 
-  async createPin() {
+  // Crea un PIN Plex e il link di autorizzazione da aprire sul telefono.
+  // forwardUrl: dove Plex rimanda il browser dopo l'accesso.
+  async createPin(forwardUrl) {
+    this.cleanupExpiredPins()
     const clientIdentifier = await this.getClientIdentifier()
 
     const response = await axios.post(`${PLEX_TV_API}/pins`, null, {
@@ -48,42 +50,84 @@ export class PlexAuthService {
     })
 
     const { id, code } = response.data
-    this.pendingPins.set(String(id), { code, clientIdentifier, createdAt: Date.now() })
+    this.pendingPins.set(String(id), { code, clientIdentifier, createdAt: Date.now(), result: null })
 
-    const authUrl = `https://app.plex.tv/auth#?clientID=${encodeURIComponent(clientIdentifier)}` +
+    let authUrl = `https://app.plex.tv/auth#?clientID=${encodeURIComponent(clientIdentifier)}` +
       `&code=${encodeURIComponent(code)}` +
       `&context%5Bdevice%5D%5Bproduct%5D=${encodeURIComponent(PLEX_PRODUCT)}`
+    if (forwardUrl) {
+      authUrl += `&forwardUrl=${encodeURIComponent(forwardUrl)}`
+    }
 
-    const qrDataUrl = await QRCode.toDataURL(authUrl, { margin: 1, width: 400 })
-
-    return { pinId: id, code, qrDataUrl, expiresIn: Math.floor(PIN_TTL_MS / 1000) }
+    return { pinId: id, authUrl, expiresIn: Math.floor(PIN_TTL_MS / 1000) }
   }
 
+  cleanupExpiredPins() {
+    const now = Date.now()
+    for (const [id, pin] of this.pendingPins) {
+      if (now - pin.createdAt > PIN_TTL_MS) this.pendingPins.delete(id)
+    }
+  }
+
+  // Controlla se il PIN è stato autorizzato. Il token, l'account e i server
+  // restano solo sul server (non vengono mai inviati al browser): il client
+  // sceglie il server per machineIdentifier.
   async checkPin(pinId) {
+    this.cleanupExpiredPins()
     const pending = this.pendingPins.get(String(pinId))
     if (!pending) {
-      throw new Error('PIN sconosciuto o già scaduto, richiedine uno nuovo')
-    }
-    if (Date.now() - pending.createdAt > PIN_TTL_MS) {
-      this.pendingPins.delete(String(pinId))
-      throw new Error('PIN scaduto, richiedine uno nuovo')
+      throw new Error('Accesso Plex scaduto, riprova')
     }
 
-    const response = await axios.get(`${PLEX_TV_API}/pins/${pinId}`, {
-      headers: this.plexHeaders(pending.clientIdentifier),
+    if (!pending.result) {
+      const response = await axios.get(`${PLEX_TV_API}/pins/${pinId}`, {
+        headers: this.plexHeaders(pending.clientIdentifier),
+        timeout: 8000
+      })
+
+      const authToken = response.data?.authToken
+      if (!authToken) {
+        return { authenticated: false }
+      }
+
+      const [account, servers] = await Promise.all([
+        this.getAccount(authToken),
+        this.getServers(authToken, pending.clientIdentifier)
+      ])
+      pending.result = { authToken, account, servers }
+    }
+
+    const { account, servers } = pending.result
+    return {
+      authenticated: true,
+      account: { username: account.username },
+      servers: servers.map(({ name, machineIdentifier, local, owned }) => ({ name, machineIdentifier, local, owned }))
+    }
+  }
+
+  // Il PIN deve essere già autorizzato: restituisce i dati completi (token
+  // compresi) e lo rimuove, perché ogni PIN si usa una volta sola.
+  consumePin(pinId) {
+    const pending = this.pendingPins.get(String(pinId))
+    if (!pending?.result) {
+      throw new Error('Accesso Plex non completato o scaduto')
+    }
+    this.pendingPins.delete(String(pinId))
+    return pending.result
+  }
+
+  // L'account Plex che ha autorizzato il token: serve per riconoscere lo
+  // stesso utente quando chiede di reimpostare la password.
+  async getAccount(authToken) {
+    const clientIdentifier = await this.getClientIdentifier()
+    const response = await axios.get(`${PLEX_TV_API}/user`, {
+      headers: { ...this.plexHeaders(clientIdentifier), 'X-Plex-Token': authToken },
       timeout: 8000
     })
-
-    const authToken = response.data?.authToken
-    if (!authToken) {
-      return { authenticated: false }
+    return {
+      id: String(response.data.id),
+      username: response.data.username || response.data.title || response.data.email || ''
     }
-
-    // PIN consumato: non serve più tenerlo in memoria
-    this.pendingPins.delete(String(pinId))
-
-    const servers = await this.getServers(authToken, pending.clientIdentifier)
-    return { authenticated: true, servers }
   }
 
   // Elenco dei server Plex accessibili con questo account (propri o
@@ -114,6 +158,7 @@ export class PlexAuthService {
           local: !!connection.local,
           url: connection.address,
           port: connection.port,
+          owned: !!resource.owned,
           accessToken
         }
       }))

@@ -1,270 +1,142 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './LoginScreen.css'
 
-// Flusso di login Plex identico a quello delle app ufficiali (TV, Plexamp):
-// il server genera un PIN, questo schermo mostra il QR corrispondente, e
-// interroga il server finché l'utente non lo autorizza dal telefono.
-const POLL_INTERVAL_MS = 2000
+// Il kiosk non si configura dal touch screen: mostra un QR che apre la
+// configurazione sul telefono (iniziale su /setup, generale su /config).
+const STATE_POLL_MS = 3000
 
+const useQr = target => {
+  const [qr, setQr] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let retry
+    const load = async () => {
+      try {
+        const response = await fetch('/api/auth/qr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target })
+        })
+        if (!response.ok) throw new Error()
+        setQr(await response.json())
+        setError('')
+      } catch (err) {
+        setError('Impossibile preparare il QR code, nuovo tentativo tra poco...')
+        retry = setTimeout(load, 5000)
+      }
+    }
+    load()
+    return () => clearTimeout(retry)
+  }, [target])
+
+  return { qr, error }
+}
+
+const QrBlock = ({ qr, error, alt }) => (
+  <>
+    {qr && (
+      <div className="login-qr-block">
+        <img src={qr.qrDataUrl} alt={alt} className="login-qr" />
+        <p className="login-alt">Oppure apri <strong>{qr.url}</strong></p>
+        <p className="login-alt">Il telefono deve essere sulla stessa rete Wi-Fi</p>
+      </div>
+    )}
+    {!qr && !error && (
+      <div className="login-loading"><div className="spinner" /></div>
+    )}
+    {error && <div className="error-message">{error}</div>}
+  </>
+)
+
+// Dispositivo non configurato (primo avvio, o Plex scollegato/token revocato)
 const LoginScreen = () => {
   const { markAuthenticated } = useWebSocket()
-  const [pin, setPin] = useState(null)
-  const [servers, setServers] = useState(null)
-  const [error, setError] = useState('')
-  const [selecting, setSelecting] = useState(false)
-  // Step 2 dopo il login Plex: proporre il collegamento a Last.fm
-  const [lastfmStep, setLastfmStep] = useState(false)
-  const pollRef = useRef(null)
-  const retryRef = useRef(null)
+  const { qr, error } = useQr('setup')
+  const [state, setState] = useState(null)
 
-  const requestPin = useCallback(async () => {
-    setError('')
-    setServers(null)
-    try {
-      const response = await fetch('/api/auth/pin', { method: 'POST' })
-      if (!response.ok) throw new Error('Richiesta PIN fallita')
-      const data = await response.json()
-      setPin(data)
-    } catch (err) {
-      setError('Impossibile contattare Plex, nuovo tentativo tra poco...')
-      retryRef.current = setTimeout(requestPin, 5000)
-    }
-  }, [])
-
+  // La configurazione avviene sul telefono: qui si attende che sia completa
   useEffect(() => {
-    requestPin()
-    return () => {
-      clearInterval(pollRef.current)
-      clearTimeout(retryRef.current)
-    }
-  }, [requestPin])
-
-  const selectServer = useCallback(async (server) => {
-    setSelecting(true)
-    setError('')
-    try {
-      const response = await fetch('/api/auth/select-server', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: '',
-          url: server.url,
-          port: server.port,
-          token: server.accessToken
-        })
-      })
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}))
-        if (response.status === 401) {
-          setError('È impostata una password di configurazione: completa il login dalla pagina /config.')
-        } else {
-          setError(body.error || 'Impossibile salvare il server selezionato')
-        }
-        setSelecting(false)
-        return
-      }
-
-      // Se Last.fm non è ancora collegato, proponilo come step 2
-      const state = await fetch('/api/auth/state').then(r => r.json()).catch(() => ({}))
-      if (state.lastfmConfigured) {
-        markAuthenticated()
-      } else {
-        setLastfmStep(true)
-      }
-    } catch (err) {
-      setError('Impossibile salvare il server selezionato')
-      setSelecting(false)
-    }
-  }, [markAuthenticated])
-
-  useEffect(() => {
-    if (!pin) return undefined
-
-    pollRef.current = setInterval(async () => {
+    const check = async () => {
       try {
-        const response = await fetch(`/api/auth/pin/${pin.pinId}`)
-        if (!response.ok) {
-          // Il PIN è scaduto lato server: chiedine subito uno nuovo
-          clearInterval(pollRef.current)
-          requestPin()
-          return
-        }
-
-        const data = await response.json()
-        if (data.authenticated) {
-          clearInterval(pollRef.current)
-          const found = data.servers || []
-          setServers(found)
-          if (found.length === 1) {
-            selectServer(found[0])
-          }
-        }
+        const data = await fetch('/api/auth/state').then(r => r.json())
+        setState(data)
+        if (data.setupComplete) markAuthenticated()
       } catch (err) {
         // Errore di rete transitorio: il prossimo giro riprova da solo
       }
-    }, POLL_INTERVAL_MS)
+    }
+    check()
+    const interval = setInterval(check, STATE_POLL_MS)
+    return () => clearInterval(interval)
+  }, [markAuthenticated])
 
-    return () => clearInterval(pollRef.current)
-  }, [pin, requestPin, selectServer])
-
-  if (lastfmStep) {
-    return <LastfmStep onFinish={markAuthenticated} />
-  }
+  const isFirstSetup = state ? !state.hasPassword : true
 
   return (
     <div className="login-screen">
       <div className="login-card">
-        <p className="login-step">Passo 1 di 2</p>
-        <h1>Accedi a Plex</h1>
-
-        {!servers && pin && (
-          <div className="login-qr-block">
-            <p className="login-hint">Inquadra il QR code con il telefono per accedere</p>
-            <img src={pin.qrDataUrl} alt="QR code di accesso Plex" className="login-qr" />
-            <p className="login-alt">
-              Oppure vai su <strong>plex.tv/link</strong> e inserisci il codice:
-            </p>
-            <div className="login-code">{pin.code}</div>
-          </div>
-        )}
-
-        {!servers && !pin && !error && (
-          <div className="login-loading">
-            <div className="spinner" />
-            <p>Preparazione del login...</p>
-          </div>
-        )}
-
-        {servers && servers.length === 0 && (
-          <p className="login-hint">Nessun server Plex trovato per questo account.</p>
-        )}
-
-        {servers && servers.length > 1 && (
-          <div className="login-servers">
-            <p className="login-hint">Scegli il server Plex da usare:</p>
-            {servers.map(server => (
-              <button
-                key={server.machineIdentifier}
-                className="btn btn-primary login-server-btn"
-                disabled={selecting}
-                onClick={() => selectServer(server)}
-              >
-                {server.name} {server.local ? '(rete locale)' : ''}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {servers && servers.length === 1 && (
-          <div className="login-loading">
-            <div className="spinner" />
-            <p>Configurazione di "{servers[0].name}" in corso...</p>
-          </div>
-        )}
-
-        {error && <div className="error-message">{error}</div>}
+        <h1>{isFirstSetup ? 'Configura il dispositivo' : 'Ricollega Plex'}</h1>
+        <p className="login-hint">
+          {isFirstSetup
+            ? 'Inquadra il QR code con il telefono per iniziare la configurazione'
+            : 'Il collegamento a Plex non è attivo: inquadra il QR code con il telefono per ripristinarlo'}
+        </p>
+        <QrBlock qr={qr} error={error} alt="QR code per configurare il dispositivo" />
       </div>
     </div>
   )
 }
 
-// Step 2: collegamento facoltativo a Last.fm. Il QR apre sul telefono una
-// pagina del server dove inserire lo username; qui si attende il completamento.
-const LastfmStep = ({ onFinish }) => {
-  const [wantsLink, setWantsLink] = useState(false)
-  const [link, setLink] = useState(null)
-  const [error, setError] = useState('')
-  const [done, setDone] = useState(false)
+// Icona ⚙︎ sempre disponibile sul kiosk: mostra il QR per aprire la
+// configurazione generale sul telefono (che chiede la password).
+const CONFIG_QR_TIMEOUT_MS = 60000
 
-  const requestLink = useCallback(async () => {
-    setError('')
-    try {
-      const response = await fetch('/api/auth/lastfm/link', { method: 'POST' })
-      if (!response.ok) throw new Error()
-      setLink(await response.json())
-    } catch (err) {
-      setError('Impossibile preparare il collegamento a Last.fm')
-    }
-  }, [])
+const ConfigQrOverlay = ({ onClose }) => {
+  const { qr, error } = useQr('config')
 
   useEffect(() => {
-    if (wantsLink) requestLink()
-  }, [wantsLink, requestLink])
+    const timeout = setTimeout(onClose, CONFIG_QR_TIMEOUT_MS)
+    return () => clearTimeout(timeout)
+  }, [onClose])
 
-  useEffect(() => {
-    if (!link) return undefined
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/auth/lastfm/link/${link.token}`)
-        if (response.status === 404) {
-          // Link scaduto: ne serve uno nuovo
-          clearInterval(interval)
-          requestLink()
-          return
-        }
-        const data = await response.json()
-        if (data.done) {
-          clearInterval(interval)
-          setDone(true)
-          setTimeout(onFinish, 1500)
-        }
-      } catch (err) {
-        // Errore di rete transitorio: il prossimo giro riprova da solo
-      }
-    }, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [link, requestLink, onFinish])
+  const stop = e => e.stopPropagation()
 
   return (
-    <div className="login-screen">
-      <div className="login-card">
-        <p className="login-step">Passo 2 di 2</p>
-        <h1>Collegare Last.fm?</h1>
-
-        {!wantsLink && (
-          <>
-            <p className="login-hint">
-              Con Last.fm, quando non c'è musica in riproduzione, lo schermo mostra
-              i tuoi album più ascoltati e l'ultimo brano ascoltato.
-            </p>
-            <div className="login-actions">
-              <button className="btn btn-primary" onClick={() => setWantsLink(true)}>
-                Sì, collega Last.fm
-              </button>
-              <button className="btn btn-secondary" onClick={onFinish}>
-                No, continua
-              </button>
-            </div>
-          </>
-        )}
-
-        {wantsLink && !done && link && (
-          <div className="login-qr-block">
-            <p className="login-hint">Inquadra il QR code con il telefono e inserisci il tuo username Last.fm</p>
-            <img src={link.qrDataUrl} alt="QR code per collegare Last.fm" className="login-qr" />
-            <p className="login-alt">Il telefono deve essere sulla stessa rete Wi-Fi</p>
-            <button className="btn btn-secondary" onClick={onFinish}>Salta</button>
-          </div>
-        )}
-
-        {wantsLink && !done && !link && !error && (
-          <div className="login-loading">
-            <div className="spinner" />
-          </div>
-        )}
-
-        {done && <p className="login-hint">✓ Last.fm collegato</p>}
-
-        {error && (
-          <>
-            <div className="error-message">{error}</div>
-            <button className="btn btn-secondary" onClick={onFinish}>Continua senza Last.fm</button>
-          </>
-        )}
+    <div className="login-screen config-qr-overlay" onClick={onClose} onTouchEnd={onClose}>
+      <div className="login-card" onClick={stop} onTouchEnd={stop}>
+        <h1>Configurazione</h1>
+        <p className="login-hint">Inquadra il QR code con il telefono</p>
+        <QrBlock qr={qr} error={error} alt="QR code per aprire la configurazione" />
+        <button className="btn btn-secondary" onClick={onClose}>Chiudi</button>
       </div>
     </div>
+  )
+}
+
+export const ConfigQrButton = () => {
+  const [open, setOpen] = useState(false)
+  const close = React.useCallback(() => setOpen(false), [])
+
+  const toggle = e => {
+    e.stopPropagation()
+    e.preventDefault()
+    setOpen(true)
+  }
+
+  return (
+    <>
+      <button
+        className="config-qr-button"
+        aria-label="Configurazione"
+        onClick={toggle}
+        onTouchEnd={toggle}
+      >
+        ⚙︎
+      </button>
+      {open && <ConfigQrOverlay onClose={close} />}
+    </>
   )
 }
 

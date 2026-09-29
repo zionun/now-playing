@@ -3,7 +3,7 @@ import { useWebSocket } from '../context/WebSocketContext'
 import './IdleScreen.css'
 
 const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRemaining, isPaused, hasControls = false }) => {
-  const { socket } = useWebSocket()
+  const { socket, configVersion } = useWebSocket()
   const [lastfmData, setLastfmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -17,7 +17,8 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     const interval = setInterval(fetchLastfmData, 5 * 60 * 1000)
     
     return () => clearInterval(interval)
-  }, [hasResumeOption])
+    // configVersion: Last.fm appena collegato/modificato dal telefono
+  }, [hasResumeOption, configVersion])
 
   const fetchLastfmData = async () => {
     try {
@@ -129,7 +130,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
           <div className="error-icon">♪</div>
           <h2>Nessuna musica in riproduzione</h2>
           <p>Last.fm non configurato o non disponibile</p>
-          <small>Tocca per configurare</small>
+          <small>Tocca ⚙︎ in alto a destra per configurare</small>
         </div>
       ) : lastfmData ? (
         <div className="idle-content">

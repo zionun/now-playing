@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 import { ConfigService } from './services/ConfigService.js';
 import { LastfmService } from './services/LastfmService.js';
 import { PlexAuthService } from './services/PlexAuthService.js';
-import { LastfmLinkService } from './services/LastfmLinkService.js';
+import { DeviceSetupService } from './services/DeviceSetupService.js';
 import lastfmRouter, { setLastfmService } from './routes/lastfm.js';
 import configRouter, { setConfigService } from './routes/config.js';
 import authRouter, { setAuthServices } from './routes/auth.js';
@@ -31,7 +31,7 @@ const appConfig = configService.getConfig();
 // 📋 SERVICES INITIALIZATION
 const lastfmService = new LastfmService(configService);
 const plexAuthService = new PlexAuthService(configService);
-const lastfmLinkService = new LastfmLinkService(configService);
+const deviceSetupService = new DeviceSetupService(configService);
 
 // 📋 ADVANCED CONFIGURATION - Main server with multi-player functionality
 // Built from (priority) env vars > config file, with no hardcoded fallback
@@ -76,6 +76,14 @@ async function reloadConfigFromDisk() {
   playerIPCache.clear();
 
   tokenInvalidHandled = false; // un nuovo login/config è stato appena salvato
+
+  // Il kiosk ricarica i dati che dipendono dalla configurazione (es. Last.fm)
+  safeEmit('configUpdated', {});
+
+  // Plex disconnesso dal telefono: il kiosk torna al QR di configurazione
+  if (!CONFIG.PLEX_TOKEN || !CONFIG.PLEX_SERVER_URL) {
+    safeEmit('authRequired', { reason: 'not_configured' });
+  }
 
   console.log('🔄 Configurazione ricaricata:', {
     serverUrl: CONFIG.PLEX_SERVER_URL || '(non configurato)',
@@ -935,15 +943,18 @@ app.use(express.static(path.join(__dirname, '../../client/dist')));
 // 📋 REGISTRAZIONE ROUTE API
 setLastfmService(lastfmService);
 app.use('/api/lastfm', lastfmRouter);
-setConfigService(configService, reloadConfigFromDisk);
+setConfigService(configService, reloadConfigFromDisk, deviceSetupService);
 app.use('/api/config', configRouter);
-setAuthServices(configService, plexAuthService, reloadConfigFromDisk, lastfmLinkService);
+setAuthServices(configService, plexAuthService, reloadConfigFromDisk, deviceSetupService);
 app.use('/api/auth', authRouter);
 
-// Test di connessione usato dal pannello /config prima di salvare
-app.post('/api/plex/test-connection', async (req, res) => {
+// Test di connessione usato dal pannello /config prima di salvare. Richiede
+// la sessione: senza token esplicito usa quello salvato, che non deve poter
+// essere inviato a un indirizzo scelto da chiunque.
+app.post('/api/plex/test-connection', deviceSetupService.requireSession, async (req, res) => {
   try {
-    const { url, port, token } = req.body;
+    const { url, port } = req.body;
+    const token = req.body.token || CONFIG.PLEX_TOKEN;
     if (!url || !token) {
       return res.status(400).json({ error: 'URL e token sono obbligatori' });
     }
@@ -1003,9 +1014,9 @@ io.on('connection', (socket) => {
     console.error(`❌ Errore socket ${socket.id}:`, error.message);
   });
   
-  // Se Plex non è (ancora) configurato, il client deve mostrare subito la
-  // schermata di login invece della grafica "idle" di Last.fm.
-  if (!CONFIG.PLEX_TOKEN || !CONFIG.PLEX_SERVER_URL) {
+  // Se il dispositivo non è (ancora) configurato, il client deve mostrare
+  // subito il QR di configurazione invece della grafica "idle" di Last.fm.
+  if (!CONFIG.PLEX_TOKEN || !CONFIG.PLEX_SERVER_URL || !configService.hasConfigPassword()) {
     socket.emit('authRequired', { reason: 'not_configured' });
   }
 
@@ -1609,9 +1620,20 @@ const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, async () => {
   console.log(`🚀 Server avviato su porta ${PORT}`);
+  console.log(`📱 Configurazione dal telefono: ${deviceSetupService.getBaseUrl()}/setup`);
+
+  // Configurazioni create prima del login QR non conoscono l'account Plex
+  // del dispositivo, necessario per "Password dimenticata": lo si ricava
+  // dal token già salvato.
+  const plexConfig = configService.getConfig().plex || {};
+  if (plexConfig.token && !plexConfig.accountId) {
+    plexAuthService.getAccount(plexConfig.token)
+      .then(account => configService.setPlexAccountId(account.id))
+      .catch(error => console.log('⚠️  Account Plex non recuperato:', error.message));
+  }
 
   if (!CONFIG.PLEX_SERVER_URL || !CONFIG.PLEX_TOKEN) {
-    console.log('⚠️  Plex non configurato: apri /config per impostare server e token.');
+    console.log('⚠️  Plex non configurato: inquadra il QR sullo schermo per la configurazione iniziale.');
     startMonitoring();
     return;
   }

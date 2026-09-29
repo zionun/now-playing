@@ -4,11 +4,16 @@ const router = express.Router()
 
 let configService = null
 let onConfigUpdated = null
+let setupService = null
 
-export function setConfigService(service, reloadCallback = null) {
+export function setConfigService(service, reloadCallback = null, deviceSetupService = null) {
   configService = service
   onConfigUpdated = reloadCallback
+  setupService = deviceSetupService
 }
+
+// Tutta la configurazione richiede la sessione aperta con la password
+router.use((req, res, next) => setupService.requireSession(req, res, next))
 
 // Get configuration (excluding sensitive data)
 router.get('/', (req, res) => {
@@ -21,6 +26,7 @@ router.get('/', (req, res) => {
         url: config.plex?.url || '',
         port: config.plex?.port || 32400,
         token: config.plex?.token ? '***' : '',
+        serverName: config.plex?.serverName || '',
         preferredUser: config.plex?.preferredUser
       },
       lastfm: {
@@ -42,15 +48,11 @@ router.get('/', (req, res) => {
 // Update configuration
 router.post('/', async (req, res) => {
   try {
-    const { password, config: newConfig } = req.body
-    
-    // Verify password if one is set
-    const isValidPassword = await configService.verifyConfigPassword(password)
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid password' })
-    }
-    
-    await configService.updateConfig(newConfig)
+    const { config: newConfig } = req.body
+
+    // La password si cambia solo da /api/auth/password/change
+    const { users, ...rest } = newConfig || {}
+    await configService.updateConfig(rest)
 
     // Applica subito le modifiche (URL/token Plex, chiavi Last.fm...) senza
     // richiedere un riavvio del processo.
@@ -59,17 +61,6 @@ router.post('/', async (req, res) => {
     }
 
     res.json({ success: true })
-  } catch (error) {
-    res.status(400).json({ error: error.message })
-  }
-})
-
-// Verify password
-router.post('/verify-password', async (req, res) => {
-  try {
-    const { password } = req.body
-    const isValid = await configService.verifyConfigPassword(password)
-    res.json({ valid: isValid })
   } catch (error) {
     res.status(400).json({ error: error.message })
   }

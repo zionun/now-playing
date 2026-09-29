@@ -1,114 +1,104 @@
-# Install script for Raspberry Pi (DietPi)
-# Run as root: curl -sSL https://raw.githubusercontent.com/your-repo/install.sh | bash
-
 #!/bin/bash
+# Install script for Raspberry Pi (DietPi / Raspberry Pi OS)
+# Run as root from the cloned repository: sudo ./install.sh
 
-set -e
+set -euo pipefail
+
+APP_DIR="/opt/now-playing"
+NODE_MAJOR_REQUIRED=20
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+fail() { echo "❌ $1"; exit 1; }
 
 echo "🚀 Installing Now Playing for Plex..."
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then 
-    echo "❌ Please run as root (use sudo)"
-    exit 1
-fi
+[ "$EUID" -eq 0 ] || fail "Please run as root (use sudo)"
 
-# Update system
-echo "📦 Updating system packages..."
-apt update && apt upgrade -y
+# System packages: git, curl and the build tools needed to compile native
+# modules (bcrypt) when no prebuilt binary is available for this CPU
+echo "📦 Installing system packages..."
+apt update
+apt install -y git curl ca-certificates build-essential python3
 
-# Check if Node.js is already installed (from DietPi auto-setup)
+# Node.js (LTS)
+NODE_MAJOR=0
 if command -v node >/dev/null 2>&1; then
-    NODE_VERSION=$(node --version)
-    echo "✅ Node.js is already installed: $NODE_VERSION"
-    
-    # Check if version is adequate (18+)
-    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
-    if [ "$NODE_MAJOR" -lt 18 ]; then
-        echo "⚠️  Node.js version too old, updating to 18..."
-        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-        apt install -y nodejs
-    fi
-else
-    # Fallback: install Node.js if not present
-    echo "📥 Installing Node.js 18..."
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    NODE_MAJOR=$(node --version | sed 's/^v//' | cut -d. -f1)
+fi
+if [ "$NODE_MAJOR" -lt "$NODE_MAJOR_REQUIRED" ]; then
+    echo "📥 Installing Node.js $NODE_MAJOR_REQUIRED LTS..."
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR_REQUIRED}.x" | bash -
     apt install -y nodejs
 fi
+echo "✅ Node.js $(node --version)"
 
-# Check if Git is already installed (from DietPi auto-setup)
-if ! command -v git >/dev/null 2>&1; then
-    echo "📥 Installing Git..."
-    apt install -y git
-else
-    echo "✅ Git is already installed"
+# PM2 and log rotation (small, few log files to spare the SD card)
+if ! command -v pm2 >/dev/null 2>&1; then
+    echo "🔧 Installing PM2..."
+    npm install -g pm2
 fi
-
-# Install PM2 globally
-echo "🔧 Installing PM2..."
-npm install -g pm2
-
 echo "🗂️  Configuring log rotation..."
-# Rotazione dei log: file piccoli e pochi, per non consumare la scheda SD
 pm2 describe pm2-logrotate >/dev/null 2>&1 || pm2 install pm2-logrotate
 pm2 set pm2-logrotate:max_size 5M
 pm2 set pm2-logrotate:retain 3
 pm2 set pm2-logrotate:compress true
 
-# Create app directory and copy files
-APP_DIR="/opt/now-playing"
-echo "📁 Creating application directory: $APP_DIR"
-mkdir -p $APP_DIR
+# Application files
+if [ "$SOURCE_DIR" != "$APP_DIR" ]; then
+    echo "📋 Copying application files to $APP_DIR..."
+    mkdir -p "$APP_DIR"
+    # An existing configuration (password, Plex, Last.fm) is kept
+    cp -r "$SOURCE_DIR"/. "$APP_DIR"/
+fi
+cd "$APP_DIR"
 
-# Copy current repository contents to /opt/now-playing
-echo "📋 Copying application files..."
-cp -r . $APP_DIR/
-cd $APP_DIR
-
-# Install dependencies
+# Dependencies (exact versions from the lockfiles) and production build
 echo "📦 Installing dependencies..."
-npm run install:all
+for dir in . client server; do
+    (cd "$dir" && npm ci --no-audit --no-fund)
+done
 
-# Build production
-echo "🏗️  Building production version..."
+for pkg in express socket.io bcrypt ws qrcode; do
+    [ -d "server/node_modules/$pkg" ] || fail "Server dependency '$pkg' is missing: check the npm output above"
+done
+
+echo "🏗️  Building the interface..."
 npm run build
+[ -f client/dist/index.html ] || fail "Build failed: client/dist/index.html not found"
 
-# Setup PM2
-echo "🔄 Setting up PM2..."
-pm2 start ecosystem.config.cjs
-pm2 startup systemd -u root --hp /root
+# Start (or reload if already running) and enable at boot
+echo "🔄 Starting with PM2..."
+pm2 startOrReload ecosystem.config.cjs
+pm2 startup systemd -u root --hp /root >/dev/null
 pm2 save
 
+# Check that the server answers
+echo "🩺 Checking the server..."
+for i in $(seq 1 15); do
+    if curl -fs -o /dev/null http://localhost:3001/api/auth/state; then
+        echo "✅ Server is running"
+        break
+    fi
+    [ "$i" -eq 15 ] && fail "The server is not answering: check 'pm2 logs now-playing'"
+    sleep 2
+done
+
+echo ""
 echo "✅ Installation completed!"
 echo ""
-
-# Ask user about cleaning up the original directory
-ORIGINAL_DIR=$(pwd)
-echo "🧹 Cleanup Options:"
-echo "The application has been installed to /opt/now-playing"
-echo "Current directory: $ORIGINAL_DIR"
-echo ""
-read -p "Do you want to remove the original directory? (y/N): " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    cd /
-    echo "🗑️  Removing original directory: $ORIGINAL_DIR"
-    rm -rf "$ORIGINAL_DIR"
-    echo "✅ Original directory removed"
-else
-    echo "📁 Original directory kept: $ORIGINAL_DIR"
-fi
-
-echo ""
 echo "📋 Next steps:"
-echo "1. Reboot your Raspberry Pi"
+echo "1. Open the kiosk screen (or reboot the Raspberry Pi)"
 echo "2. Scan the QR code shown on the screen with your phone"
 echo "3. Follow the setup: device password, Plex login, Last.fm (optional)"
 echo ""
 echo "🔧 Useful commands:"
-echo "  pm2 status          - Check application status"
-echo "  pm2 logs now-playing - View application logs"
-echo "  pm2 restart now-playing - Restart application"
-echo ""
-echo "🌐 The app will be available at: http://localhost:3001"
+echo "  pm2 status                      - Check application status"
+echo "  pm2 logs now-playing            - View application logs"
+echo "  pm2 restart now-playing         - Restart application"
+echo "  curl localhost:3001/api/health  - Plex / Last.fm status"
+
+if [ "$SOURCE_DIR" != "$APP_DIR" ]; then
+    echo ""
+    echo "The application now runs from $APP_DIR:"
+    echo "the cloned folder $SOURCE_DIR is no longer needed and can be removed."
+fi

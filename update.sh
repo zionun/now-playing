@@ -29,25 +29,21 @@ if [ -f "$BACKUP_FILE" ] && [ ! -f "$CONFIG_FILE" ]; then
     echo "♻️  Configuration restored"
 fi
 
-# Build tools for native modules (bcrypt), if missing
-if ! command -v make >/dev/null 2>&1 || ! command -v g++ >/dev/null 2>&1; then
-    echo "📦 Installing build tools..."
-    apt update && apt install -y build-essential python3
-fi
+# The service keeps running during the update: it is reloaded at the end.
+# Dependencies (exact versions from the lockfiles). Only what production
+# needs: the server without its dev tools; the client packages only for the
+# build, then removed. The root package only has development tools.
+echo "📦 Updating server dependencies..."
+(cd server && npm ci --omit=dev --no-audit --no-fund)
 
-# The service keeps running during the update: it is reloaded at the end
-echo "📦 Updating dependencies..."
-for dir in . client server; do
-    (cd "$dir" && npm ci --no-audit --no-fund)
-done
-
-for pkg in express socket.io bcrypt ws qrcode; do
+for pkg in express socket.io bcryptjs ws qrcode; do
     [ -d "server/node_modules/$pkg" ] || fail "Server dependency '$pkg' is missing: check the npm output above"
 done
 
 echo "🏗️  Building the interface..."
-npm run build
+(cd client && npm ci --no-audit --no-fund && npm run build)
 [ -f client/dist/index.html ] || fail "Build failed: client/dist/index.html not found"
+rm -rf client/node_modules node_modules
 
 echo "🗂️  Checking log rotation..."
 pm2 describe pm2-logrotate >/dev/null 2>&1 || pm2 install pm2-logrotate

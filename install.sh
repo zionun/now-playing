@@ -14,11 +14,21 @@ echo "🚀 Installing Now Playing for Plex..."
 
 [ "$EUID" -eq 0 ] || fail "Please run as root (use sudo)"
 
-# System packages: git, curl, xdotool (kiosk watchdog) and the build tools needed to compile native
-# modules (bcrypt) when no prebuilt binary is available for this CPU
-echo "📦 Installing system packages..."
-apt update
-apt install -y git curl ca-certificates build-essential python3 xdotool
+# System packages, only the missing ones and without "recommended" extras:
+# - git: updates (update.sh)
+# - curl + ca-certificates: Node.js setup, server and kiosk checks
+# - xdotool: kiosk watchdog (kiosk.sh)
+# No compilers needed: the server has no native modules.
+PACKAGES=""
+command -v git >/dev/null 2>&1 || PACKAGES="$PACKAGES git"
+command -v curl >/dev/null 2>&1 || PACKAGES="$PACKAGES curl"
+[ -d /etc/ssl/certs ] && [ -n "$(ls -A /etc/ssl/certs 2>/dev/null)" ] || PACKAGES="$PACKAGES ca-certificates"
+command -v xdotool >/dev/null 2>&1 || PACKAGES="$PACKAGES xdotool"
+if [ -n "$PACKAGES" ]; then
+    echo "📦 Installing system packages:$PACKAGES"
+    apt update
+    apt install -y --no-install-recommends $PACKAGES
+fi
 
 # Kiosk: disable Chromium's translate prompt via a managed policy
 echo "🌐 Disabling Chromium translation..."
@@ -33,7 +43,7 @@ fi
 if [ "$NODE_MAJOR" -lt "$NODE_MAJOR_REQUIRED" ]; then
     echo "📥 Installing Node.js $NODE_MAJOR_REQUIRED LTS..."
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR_REQUIRED}.x" | bash -
-    apt install -y nodejs
+    apt install -y --no-install-recommends nodejs
 fi
 echo "✅ Node.js $(node --version)"
 
@@ -57,19 +67,20 @@ if [ "$SOURCE_DIR" != "$APP_DIR" ]; then
 fi
 cd "$APP_DIR"
 
-# Dependencies (exact versions from the lockfiles) and production build
-echo "📦 Installing dependencies..."
-for dir in . client server; do
-    (cd "$dir" && npm ci --no-audit --no-fund)
-done
+# Dependencies (exact versions from the lockfiles). Only what production
+# needs: the server without its dev tools; the client packages only for the
+# build, then removed. The root package only has development tools.
+echo "📦 Installing server dependencies..."
+(cd server && npm ci --omit=dev --no-audit --no-fund)
 
-for pkg in express socket.io bcrypt ws qrcode; do
+for pkg in express socket.io bcryptjs ws qrcode; do
     [ -d "server/node_modules/$pkg" ] || fail "Server dependency '$pkg' is missing: check the npm output above"
 done
 
 echo "🏗️  Building the interface..."
-npm run build
+(cd client && npm ci --no-audit --no-fund && npm run build)
 [ -f client/dist/index.html ] || fail "Build failed: client/dist/index.html not found"
+rm -rf client/node_modules node_modules
 
 # Start (or reload if already running) and enable at boot
 echo "🔄 Starting with PM2..."

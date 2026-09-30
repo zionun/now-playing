@@ -1,10 +1,15 @@
 import fs from 'fs/promises'
 import path from 'path'
-import bcrypt from 'bcrypt'
+// bcryptjs: JavaScript puro (niente compilazione sul Raspberry), compatibile
+// con gli hash creati in precedenza da bcrypt
+import bcrypt from 'bcryptjs'
 import { fileURLToPath } from 'url'
 import { DEFAULT_FILTERS, normalizeFilters } from './sessionFilters.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// 10 round: sicuro e verificabile in meno di un secondo anche su un Pi Zero 2
+const BCRYPT_ROUNDS = 10
 
 export class ConfigService {
   constructor() {
@@ -83,7 +88,7 @@ export class ConfigService {
   async updateConfig(updates) {
     // Hash password if provided
     if (updates.users?.configPassword) {
-      const saltRounds = 12
+      const saltRounds = BCRYPT_ROUNDS
       updates.users.configPassword = await bcrypt.hash(updates.users.configPassword, saltRounds)
     }
 
@@ -159,7 +164,7 @@ export class ConfigService {
   }
 
   async setConfigPassword(password) {
-    const hash = await bcrypt.hash(password, 12)
+    const hash = await bcrypt.hash(password, BCRYPT_ROUNDS)
     this.config.users = { ...this.config.users, configPassword: hash }
     await this.saveConfig()
   }

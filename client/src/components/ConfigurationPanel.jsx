@@ -9,6 +9,10 @@ import { errorText, useT, SUPPORTED_LANGUAGES, LANGUAGE_NAMES } from '../i18n'
 
 // General settings, opened on the phone from the QR code the kiosk shows when
 // the ⚙︎ icon is tapped. Always asks for the device password.
+// A number typed in a settings field, kept within its limits
+const clamp = (value, min, max, fallback) =>
+  Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
+
 const ConfigurationPanel = () => {
   const t = useT()
   const [state, setState] = useState(null)
@@ -44,10 +48,11 @@ const ConfigurationPanel = () => {
       setState(stateData)
       setConfig(configData)
       setPrefs({
-        showControlsTimeout: configData.display?.showControlsTimeout || 4000,
+        // Number fields are kept as typed (even empty) and converted on save
+        controlsSeconds: String((configData.display?.showControlsTimeout || 4000) / 1000),
         enableLastfmIdle: configData.display?.enableLastfmIdle !== false,
         screenAlwaysOn: !!configData.display?.screenAlwaysOn,
-        screenSleepMinutes: configData.display?.screenSleepMinutes || 5,
+        screenSleepMinutes: String(configData.display?.screenSleepMinutes || 5),
         language: configData.display?.language || 'auto'
       })
       setAdvanced({ url: configData.plex.url || '', port: configData.plex.port || 32400, token: '' })
@@ -80,7 +85,13 @@ const ConfigurationPanel = () => {
     e.preventDefault()
     setPrefsMessage(null)
     try {
-      await api('/api/config', { method: 'POST', body: { config: { display: prefs } } })
+      const { controlsSeconds, screenSleepMinutes, ...rest } = prefs
+      const display = {
+        ...rest,
+        showControlsTimeout: Math.round(clamp(parseFloat(controlsSeconds), 1, 10, 4) * 1000),
+        screenSleepMinutes: Math.round(clamp(parseInt(screenSleepMinutes, 10), 1, 240, 5))
+      }
+      await api('/api/config', { method: 'POST', body: { config: { display } } })
       setPrefsMessage({ key: 'settings.prefsSaved' })
     } catch (err) {
       handleError(err)
@@ -257,10 +268,9 @@ const ConfigurationPanel = () => {
             min="1"
             max="10"
             step="0.5"
-            value={prefs.showControlsTimeout / 1000}
-            onChange={e =>
-              setPrefs({ ...prefs, showControlsTimeout: Math.round(parseFloat(e.target.value || 0) * 1000) })
-            }
+            required
+            value={prefs.controlsSeconds}
+            onChange={e => setPrefs({ ...prefs, controlsSeconds: e.target.value })}
           />
           <label className="phone-checkbox">
             <input
@@ -288,10 +298,9 @@ const ConfigurationPanel = () => {
                 max="240"
                 step="1"
                 disabled={prefs.screenAlwaysOn}
+                required={!prefs.screenAlwaysOn}
                 value={prefs.screenSleepMinutes}
-                onChange={e =>
-                  setPrefs({ ...prefs, screenSleepMinutes: Math.max(1, parseInt(e.target.value, 10) || 1) })
-                }
+                onChange={e => setPrefs({ ...prefs, screenSleepMinutes: e.target.value })}
               />
               <p className="phone-small">{t('settings.screenSleepHint')}</p>
             </>

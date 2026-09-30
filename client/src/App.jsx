@@ -1,4 +1,3 @@
-import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import NowPlayingDisplay from './components/NowPlayingDisplay'
 import ConfigurationPanel from './components/ConfigurationPanel'

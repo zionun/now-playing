@@ -1,5 +1,10 @@
 import { EventEmitter } from 'events'
-import { filterSessions, hasActiveFilters, normalizeFilters, SeenRegistry } from '../services/sessionFilters.js'
+import {
+  filterSessions,
+  hasActiveFilters,
+  normalizeFilters,
+  SeenRegistry
+} from '../services/sessionFilters.js'
 import { extractMusicPlayers } from '../core/sessionAnalyzer.js'
 import { initialState, reduce, toNowPlaying, PAUSE_TO_IDLE_MS } from '../core/screenState.js'
 import { PlexUnauthorizedError } from '../plex/PlexClient.js'
@@ -246,10 +251,12 @@ export class NowPlayingService extends EventEmitter {
 
   targetPlayer(machineIdentifier) {
     if (machineIdentifier) return machineIdentifier
-    return this.state.primary?.machineIdentifier ||
+    return (
+      this.state.primary?.machineIdentifier ||
       this.state.pause?.player?.machineIdentifier ||
       this.state.resumeFrom?.machineIdentifier ||
       null
+    )
   }
 
   async mediaControl(command, { machineIdentifier, sessionKey } = {}) {
@@ -267,11 +274,13 @@ export class NowPlayingService extends EventEmitter {
   }
 
   async resume() {
-    const player = this.state.pause?.player ||
-      this.state.resumeFrom ||
-      this.state.players.find(p => p.state === 'paused')
+    const player =
+      this.state.pause?.player || this.state.resumeFrom || this.state.players.find(p => p.state === 'paused')
     if (!player) return { success: false, error: 'Nessuna traccia in pausa trovata' }
-    return this.mediaControl('play', { machineIdentifier: player.machineIdentifier, sessionKey: player.sessionKey })
+    return this.mediaControl('play', {
+      machineIdentifier: player.machineIdentifier,
+      sessionKey: player.sessionKey
+    })
   }
 
   async selectPlayer(machineIdentifier) {
@@ -289,7 +298,10 @@ export class NowPlayingService extends EventEmitter {
 
     // Con il WebSocket attivo le sessioni si leggono solo sugli eventi: per
     // sapere se Plex risponde si fa una richiesta leggera (/identity)
-    if (configured && (!this.plexStatus.lastOkAt || Date.now() - this.plexStatus.lastOkAt > HEALTH_CACHE_MS)) {
+    if (
+      configured &&
+      (!this.plexStatus.lastOkAt || Date.now() - this.plexStatus.lastOkAt > HEALTH_CACHE_MS)
+    ) {
       try {
         await this.plexClient.getIdentity()
         this.plexStatus = { reachable: true, lastOkAt: Date.now(), lastError: null }
@@ -347,7 +359,11 @@ export class NowPlayingService extends EventEmitter {
     const health = await this.health()
     const summary = {
       status: health.status,
-      plex: health.plex.configured ? (health.plex.reachable === false ? 'unreachable' : health.plex.updates) : 'off',
+      plex: health.plex.configured
+        ? health.plex.reachable === false
+          ? 'unreachable'
+          : health.plex.updates
+        : 'off',
       lastfm: health.lastfm.configured ? (health.lastfm.reachable === false ? 'unreachable' : 'ok') : 'off'
     }
     const key = JSON.stringify(summary)
@@ -374,7 +390,10 @@ export class NowPlayingService extends EventEmitter {
     }
 
     if (this.plexClient.isConfigured()) {
-      const [accounts] = await Promise.allSettled([this.plexClient.getAccounts(), this.directory.refresh({ force: true })])
+      const [accounts] = await Promise.allSettled([
+        this.plexClient.getAccounts(),
+        this.directory.refresh({ force: true })
+      ])
       if (accounts.status === 'fulfilled') {
         for (const account of accounts.value) {
           // L'account 0 è quello di sistema del server, non un utente reale
@@ -390,7 +409,11 @@ export class NowPlayingService extends EventEmitter {
       users.set(user.id, { id: user.id, title: user.title, ...users.get(user.id) })
     }
     for (const player of this.seen.recentPlayers()) {
-      addPlayer(player.machineIdentifier, { title: player.title, product: player.product, local: player.local })
+      addPlayer(player.machineIdentifier, {
+        title: player.title,
+        product: player.product,
+        local: player.local
+      })
     }
     // Gli elementi già selezionati restano in elenco anche se ora non si trovano
     for (const id of this.filters.users) {

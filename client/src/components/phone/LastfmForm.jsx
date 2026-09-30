@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { api } from './api'
 
 // Username e API key Last.fm. La API key già salvata non viene mai rimandata

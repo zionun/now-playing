@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import './phone.css'
 
 // Contenitore delle pagine aperte dal telefono: a differenza del kiosk qui

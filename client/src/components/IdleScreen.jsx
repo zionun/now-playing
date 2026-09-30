@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './IdleScreen.css'
 
-const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRemaining, isPaused, hasControls = false }) => {
+const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls = false }) => {
   const { socket, configVersion, display } = useWebSocket()
   // Last.fm in idle disattivato dal telefono (Impostazioni → Schermo)
   const lastfmEnabled = display?.enableLastfmIdle !== false
@@ -18,10 +18,10 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
       return undefined
     }
     fetchLastfmData()
-    
+
     // Refresh data every 5 minutes
     const interval = setInterval(fetchLastfmData, 5 * 60 * 1000)
-    
+
     return () => clearInterval(interval)
     // configVersion: Last.fm appena collegato/modificato dal telefono
   }, [hasResumeOption, configVersion, lastfmEnabled])
@@ -30,13 +30,13 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await fetch('/api/lastfm/idle-data')
-      
+
       if (!response.ok) {
         throw new Error('Last.fm not configured or connection failed')
       }
-      
+
       const data = await response.json()
       setLastfmData(data)
     } catch (err) {
@@ -47,11 +47,11 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     }
   }
 
-  const handleResume = (event) => {
+  const handleResume = event => {
     event.stopPropagation() // Previene il trigger di onInteraction
     event.preventDefault() // Previeni il comportamento di default
     if (!hasControls) return // Non fare nulla se i controlli sono disabilitati
-    
+
     // Se è un evento click, controlla se c'è stato un touch recente
     if (event.type === 'click') {
       const now = Date.now()
@@ -59,7 +59,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     } else if (event.type === 'touchstart') {
       setLastTouchTime(Date.now())
     }
-    
+
     console.log('handleResume clicked', { socket: !!socket, connected: socket?.connected })
     if (socket && socket.connected) {
       console.log('Richiesta resume da pausa manuale')
@@ -69,7 +69,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     }
   }
 
-  const formatScrobbles = (count) => {
+  const formatScrobbles = count => {
     if (count >= 1000000) {
       return `${(count / 1000000).toFixed(1)}M`
     } else if (count >= 1000) {
@@ -78,54 +78,32 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     return count.toLocaleString()
   }
 
-  const getAlbumImage = (album) => {
+  const getAlbumImage = album => {
     if (album.image) {
       // Find the largest image
-      const largeImage = album.image.find(img => img.size === 'extralarge') ||
-                        album.image.find(img => img.size === 'large') ||
-                        album.image.find(img => img.size === 'medium') ||
-                        album.image[0]
+      const largeImage =
+        album.image.find(img => img.size === 'extralarge') ||
+        album.image.find(img => img.size === 'large') ||
+        album.image.find(img => img.size === 'medium') ||
+        album.image[0]
       return largeImage?.['#text'] || '/placeholder-artwork.jpg'
     }
     return '/placeholder-artwork.jpg'
   }
 
-  const getTrackImage = (track) => {
+  const getTrackImage = track => {
     if (track.image) {
-      const largeImage = track.image.find(img => img.size === 'extralarge') ||
-                        track.image.find(img => img.size === 'large') ||
-                        track.image[0]
+      const largeImage =
+        track.image.find(img => img.size === 'extralarge') ||
+        track.image.find(img => img.size === 'large') ||
+        track.image[0]
       return largeImage?.['#text'] || '/placeholder-artwork.jpg'
     }
     return '/placeholder-artwork.jpg'
-  }
-
-  // Function to remove duplicate albums (mantenendo solo deduplicazione)
-  const getUniqueAlbums = (albums) => {
-    if (!albums || !Array.isArray(albums)) return []
-    
-    console.log('Albums from Last.fm API:', albums.map(album => ({
-      name: album.name,
-      artist: album.artist?.name || album.artist,
-      playcount: album.playcount,
-      rank: album.rank
-    })))
-    
-    // Last.fm weeklyalbumchart già fornisce ordinamento per rank, 
-    // quindi manteniamo l'ordine originale
-    const uniqueAlbums = albums.slice(0, 12)
-    
-    console.log('Final albums count:', uniqueAlbums.length)
-    
-    return uniqueAlbums
   }
 
   return (
-    <div 
-      className="idle-screen"
-      onClick={onInteraction}
-      onTouchStart={onInteraction}
-    >
+    <div className="idle-screen" onClick={onInteraction} onTouchStart={onInteraction}>
       {!lastfmEnabled ? (
         <div className="idle-error">
           <div className="error-icon">♪</div>
@@ -160,27 +138,27 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
             <div className="stat-number">{formatScrobbles(lastfmData.scrobbles)}</div>
             <div className="stat-label">Scrobbles</div>
           </div>
-          
+
           {/* Last track or resume track - Grid position 2-4,1 */}
           {hasResumeOption && resumeTrack ? (
             <div className="last-track">
               <div className="track-artwork-container">
-                <img 
+                <img
                   src={resumeTrack.thumb || '/placeholder-artwork.jpg'}
                   alt="Resume artwork"
                   className="track-artwork"
-                  onError={(e) => {
+                  onError={e => {
                     e.target.src = '/placeholder-artwork.jpg'
                   }}
                 />
-                <button 
+                <button
                   className={`play-overlay ${!hasControls ? 'disabled' : ''}`}
                   onClick={handleResume}
                   onTouchStart={handleResume}
                   disabled={!hasControls}
                 >
                   <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z"/>
+                    <path d="M8 5v14l11-7z" />
                   </svg>
                   {!hasControls && <div className="spinner"></div>}
                 </button>
@@ -194,19 +172,23 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
             </div>
           ) : lastfmData.lastTrack ? (
             <div className="last-track">
-              <img 
+              <img
                 src={getTrackImage(lastfmData.lastTrack)}
                 alt="Artwork"
                 className="track-artwork"
-                onError={(e) => {
+                onError={e => {
                   e.target.src = '/placeholder-artwork.jpg'
                 }}
               />
               <div className="track-info-container">
                 <div className="track-label">Ultima traccia riprodotta</div>
                 <div className="track-title">{lastfmData.lastTrack.name}</div>
-                <div className="track-album">{lastfmData.lastTrack.album?.['#text'] || 'Album sconosciuto'}</div>
-                <div className="track-artist">{lastfmData.lastTrack.artist?.['#text'] || lastfmData.lastTrack.artist}</div>
+                <div className="track-album">
+                  {lastfmData.lastTrack.album?.['#text'] || 'Album sconosciuto'}
+                </div>
+                <div className="track-artist">
+                  {lastfmData.lastTrack.artist?.['#text'] || lastfmData.lastTrack.artist}
+                </div>
               </div>
             </div>
           ) : null}
@@ -216,12 +198,15 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
             <div className="top-albums">
               <div className="albums-grid">
                 {lastfmData.topAlbums.map((album, index) => (
-                  <div key={`${album.artist?.name || album.artist}-${album.name}-${index}`} className="album-item">
-                    <img 
+                  <div
+                    key={`${album.artist?.name || album.artist}-${album.name}-${index}`}
+                    className="album-item"
+                  >
+                    <img
                       src={getAlbumImage(album)}
                       alt={`${album.name} by ${album.artist?.name || album.artist}`}
                       className="album-artwork"
-                      onError={(e) => {
+                      onError={e => {
                         e.target.src = '/placeholder-artwork.jpg'
                       }}
                     />

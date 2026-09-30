@@ -50,7 +50,10 @@ export function extractMusicPlayers(sessions) {
 // 2. quello che suona la traccia già mostrata (continuità se passa a un altro player)
 // 3. un player controllabile tra quelli che suonano, altrimenti il primo che suona
 // 4. se nessuno suona, il primo (es. in pausa)
-export function choosePrimary(players, { manualSelection = null, displayedRatingKey = null, isControllable = () => false } = {}) {
+export function choosePrimary(
+  players,
+  { manualSelection = null, displayedRatingKey = null, isControllable = () => false } = {}
+) {
   if (players.length === 0) return null
   const playing = players.filter(p => p.state === 'playing')
 

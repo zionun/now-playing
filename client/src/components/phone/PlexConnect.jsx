@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, storage } from './api'
 
 // Accesso a Plex dal telefono: si crea un PIN, si apre la pagina di login di
@@ -96,27 +96,33 @@ const PlexConnect = ({ onConnected, onCancel, bound = false }) => {
   const [selecting, setSelecting] = useState(false)
   const [selectError, setSelectError] = useState('')
 
-  const selectServer = useCallback(async (pinId, server) => {
-    setSelecting(true)
-    setSelectError('')
-    try {
-      const result = await api('/api/auth/plex/select', {
-        method: 'POST',
-        body: { pinId, machineIdentifier: server.machineIdentifier }
-      })
-      onConnected(result.serverName)
-    } catch (err) {
-      setSelectError(err.message)
-      setSelecting(false)
-    }
-  }, [onConnected])
+  const selectServer = useCallback(
+    async (pinId, server) => {
+      setSelecting(true)
+      setSelectError('')
+      try {
+        const result = await api('/api/auth/plex/select', {
+          method: 'POST',
+          body: { pinId, machineIdentifier: server.machineIdentifier }
+        })
+        onConnected(result.serverName)
+      } catch (err) {
+        setSelectError(err.message)
+        setSelecting(false)
+      }
+    },
+    [onConnected]
+  )
 
-  const handleAuthenticated = useCallback((result, pinId) => {
-    const found = result.servers || []
-    setAuthPinId(pinId)
-    setServers(found)
-    if (found.length === 1) selectServer(pinId, found[0])
-  }, [selectServer])
+  const handleAuthenticated = useCallback(
+    (result, pinId) => {
+      const found = result.servers || []
+      setAuthPinId(pinId)
+      setServers(found)
+      if (found.length === 1) selectServer(pinId, found[0])
+    },
+    [selectServer]
+  )
 
   const { waiting, starting, error, start, cancel } = usePlexPin('connect', handleAuthenticated)
 
@@ -141,20 +147,24 @@ const PlexConnect = ({ onConnected, onCancel, bound = false }) => {
       <div className="phone-block">
         {servers.length > 1 && <p className="phone-hint">Scegli il server Plex da usare:</p>}
         {servers.length === 1 && <p className="phone-hint">Collegamento a "{servers[0].name}"...</p>}
-        {servers.length > 1 && servers.map(server => (
-          <button
-            key={server.machineIdentifier}
-            className="phone-btn phone-btn-primary"
-            disabled={selecting}
-            onClick={() => selectServer(authPinId, server)}
-          >
-            {server.name}{server.owned ? '' : ' (condiviso)'}
-          </button>
-        ))}
+        {servers.length > 1 &&
+          servers.map(server => (
+            <button
+              key={server.machineIdentifier}
+              className="phone-btn phone-btn-primary"
+              disabled={selecting}
+              onClick={() => selectServer(authPinId, server)}
+            >
+              {server.name}
+              {server.owned ? '' : ' (condiviso)'}
+            </button>
+          ))}
         {selectError && (
           <>
             <p className="phone-error">{selectError}</p>
-            <button className="phone-btn phone-btn-secondary" onClick={retry}>Riprova con un altro account</button>
+            <button className="phone-btn phone-btn-secondary" onClick={retry}>
+              Riprova con un altro account
+            </button>
           </>
         )}
       </div>
@@ -164,8 +174,12 @@ const PlexConnect = ({ onConnected, onCancel, bound = false }) => {
   if (waiting) {
     return (
       <div className="phone-block">
-        <div className="phone-waiting"><div className="spinner" /> Attendo la conferma da Plex...</div>
-        <button className="phone-btn phone-btn-secondary" onClick={cancel}>Annulla</button>
+        <div className="phone-waiting">
+          <div className="spinner" /> Attendo la conferma da Plex...
+        </div>
+        <button className="phone-btn phone-btn-secondary" onClick={cancel}>
+          Annulla
+        </button>
       </div>
     )
   }
@@ -181,7 +195,9 @@ const PlexConnect = ({ onConnected, onCancel, bound = false }) => {
         {starting ? 'Apertura di Plex...' : 'Accedi con Plex'}
       </button>
       {onCancel && (
-        <button className="phone-btn phone-btn-secondary" onClick={onCancel}>Annulla</button>
+        <button className="phone-btn phone-btn-secondary" onClick={onCancel}>
+          Annulla
+        </button>
       )}
       {error && <p className="phone-error">{error}</p>}
     </div>

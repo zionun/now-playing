@@ -20,7 +20,7 @@ export class PlexClient {
   headers(extra = {}) {
     const { token, clientIdentifier } = this.getConnection()
     return {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       'X-Plex-Token': token,
       'X-Plex-Product': 'Now Playing',
       ...(clientIdentifier && { 'X-Plex-Client-Identifier': clientIdentifier }),

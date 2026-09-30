@@ -12,7 +12,12 @@ export function createPlexRouter({ plexClient, nowPlaying, requireSession, getTo
   // Solo percorsi relativi del server configurato, mai URL assoluti (SSRF).
   router.get('/art', async (req, res) => {
     const { path: imagePath } = req.query
-    if (!imagePath || typeof imagePath !== 'string' || !imagePath.startsWith('/') || imagePath.startsWith('//')) {
+    if (
+      !imagePath ||
+      typeof imagePath !== 'string' ||
+      !imagePath.startsWith('/') ||
+      imagePath.startsWith('//')
+    ) {
       return res.status(400).json({ error: 'Percorso immagine non valido' })
     }
     if (!plexClient.isConfigured()) {
@@ -25,7 +30,7 @@ export function createPlexRouter({ plexClient, nowPlaying, requireSession, getTo
       response.data.pipe(res)
     } catch (error) {
       log.debug('Copertina non disponibile:', error.message)
-      res.status(502).json({ error: 'Impossibile recuperare l\'immagine da Plex' })
+      res.status(502).json({ error: "Impossibile recuperare l'immagine da Plex" })
     }
   })
 
@@ -40,7 +45,7 @@ export function createPlexRouter({ plexClient, nowPlaying, requireSession, getTo
         return res.status(400).json({ error: 'URL e token sono obbligatori' })
       }
       const response = await axios.get(`http://${url}:${port || 32400}/identity`, {
-        headers: { 'X-Plex-Token': token, 'Accept': 'application/json' },
+        headers: { 'X-Plex-Token': token, Accept: 'application/json' },
         timeout: 5000
       })
       const server = response.data?.MediaContainer

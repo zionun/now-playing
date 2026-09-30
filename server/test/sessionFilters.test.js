@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { filterSessions, SeenRegistry } from '../src/services/sessionFilters.js'
 import { track, sessions } from './fixtures.js'

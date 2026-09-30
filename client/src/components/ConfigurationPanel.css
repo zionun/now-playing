@@ -122,7 +122,7 @@
   cursor: pointer;
 }
 
-.checkbox-group input[type="checkbox"] {
+.checkbox-group input[type='checkbox'] {
   width: auto;
   margin: 0;
 }
@@ -211,25 +211,25 @@
   .config-container {
     padding: 1rem;
   }
-  
+
   .config-header {
     flex-direction: column;
     gap: 1rem;
     text-align: center;
   }
-  
+
   .config-header h1 {
     font-size: 1.5rem;
   }
-  
+
   .config-section {
     padding: 1.5rem;
   }
-  
+
   .form-actions {
     flex-direction: column;
   }
-  
+
   .auth-form {
     margin: 2rem 0;
     padding: 1.5rem;
@@ -240,15 +240,15 @@
   .config-container {
     padding: 0.5rem;
   }
-  
+
   .config-section {
     padding: 1rem;
   }
-  
+
   .config-section h2 {
     font-size: 1.2rem;
   }
-  
+
   .btn {
     padding: 0.625rem 1rem;
     font-size: 0.9rem;

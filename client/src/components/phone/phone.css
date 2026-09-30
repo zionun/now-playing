@@ -59,9 +59,9 @@
   color: var(--text-secondary);
 }
 
-.phone-block input[type="text"],
-.phone-block input[type="password"],
-.phone-block input[type="number"],
+.phone-block input[type='text'],
+.phone-block input[type='password'],
+.phone-block input[type='number'],
 .phone-block input:not([type]) {
   font-size: 1.05rem; /* ≥16px: evita lo zoom automatico su iOS */
   padding: 0.75rem;

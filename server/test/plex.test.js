@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'events'
 import { backoffDelay } from '../src/lib/backoff.js'
@@ -9,23 +9,28 @@ import { PlaybackController } from '../src/plex/PlaybackController.js'
 
 test('backoff esponenziale con tetto', () => {
   const noJitter = { jitter: 0, baseMs: 1000, maxMs: 60000 }
-  assert.deepEqual([0, 1, 2, 3].map(a => backoffDelay(a, noJitter)), [1000, 2000, 4000, 8000])
+  assert.deepEqual(
+    [0, 1, 2, 3].map(a => backoffDelay(a, noJitter)),
+    [1000, 2000, 4000, 8000]
+  )
   assert.equal(backoffDelay(20, noJitter), 60000)
   const d = backoffDelay(2, { baseMs: 1000, jitter: 0.2, random: () => 1 })
   assert.ok(d <= 4800 && d >= 3200)
 })
 
 test('GDM: risposta di un player', () => {
-  const player = parseGdmResponse([
-    'HTTP/1.0 200 OK',
-    'Content-Type: plex/media-player',
-    'Resource-Identifier: abc-123',
-    'Name: Plexamp Salotto',
-    'Port: 32500',
-    'Product: Plexamp',
-    'Protocol-Capabilities: timeline,playback,playqueues',
-    ''
-  ].join('\r\n'))
+  const player = parseGdmResponse(
+    [
+      'HTTP/1.0 200 OK',
+      'Content-Type: plex/media-player',
+      'Resource-Identifier: abc-123',
+      'Name: Plexamp Salotto',
+      'Port: 32500',
+      'Product: Plexamp',
+      'Protocol-Capabilities: timeline,playback,playqueues',
+      ''
+    ].join('\r\n')
+  )
   assert.equal(player.machineIdentifier, 'abc-123')
   assert.equal(player.port, 32500)
   assert.ok(player.capabilities.includes('playback'))
@@ -33,13 +38,19 @@ test('GDM: risposta di un player', () => {
 })
 
 class FakeSocket extends EventEmitter {
-  terminate() { this.emit('close') }
+  terminate() {
+    this.emit('close')
+  }
 }
 
 test('WebSocket: un solo timer di riconnessione, con ritardo crescente', async () => {
   const sockets = []
   const stream = new PlexEventStream(() => 'ws://plex', {
-    createSocket: () => { const s = new FakeSocket(); sockets.push(s); return s },
+    createSocket: () => {
+      const s = new FakeSocket()
+      sockets.push(s)
+      return s
+    },
     backoff: { baseMs: 5, maxMs: 50, jitter: 0 }
   })
   const events = []
@@ -49,7 +60,12 @@ test('WebSocket: un solo timer di riconnessione, con ritardo crescente', async (
 
   stream.start()
   sockets[0].emit('open')
-  sockets[0].emit('message', JSON.stringify({ NotificationContainer: { PlaySessionStateNotification: [{ clientIdentifier: 'a', state: 'playing' }] } }))
+  sockets[0].emit(
+    'message',
+    JSON.stringify({
+      NotificationContainer: { PlaySessionStateNotification: [{ clientIdentifier: 'a', state: 'playing' }] }
+    })
+  )
   sockets[0].emit('close')
   // error + close ravvicinati non devono creare due timer
   assert.ok(stream.reconnectTimer)
@@ -66,15 +82,33 @@ test('WebSocket: un solo timer di riconnessione, con ritardo crescente', async (
   assert.equal(stream.connected, false)
 })
 
-const fakeDirectory = () => new PlayerDirectory({
-  plexClient: { isConfigured: () => true, getClients: async () => [{ machineIdentifier: 'srv', name: 'TV', product: 'Plex for LG' }] },
-  getPlayerResources: async () => [
-    { machineIdentifier: 'amp', title: 'iPhone', product: 'Plexamp', provides: ['player', 'pubsub-player'] },
-    { machineIdentifier: 'web', title: 'Browser', product: 'Plex Web', provides: ['player'] }
-  ],
-  discover: async () => [{ machineIdentifier: 'gdm', name: 'Plexamp Pi', product: 'Plexamp', port: 32500, capabilities: ['playback'], address: '192.168.1.5' }],
-  probe: async () => false
-})
+const fakeDirectory = () =>
+  new PlayerDirectory({
+    plexClient: {
+      isConfigured: () => true,
+      getClients: async () => [{ machineIdentifier: 'srv', name: 'TV', product: 'Plex for LG' }]
+    },
+    getPlayerResources: async () => [
+      {
+        machineIdentifier: 'amp',
+        title: 'iPhone',
+        product: 'Plexamp',
+        provides: ['player', 'pubsub-player']
+      },
+      { machineIdentifier: 'web', title: 'Browser', product: 'Plex Web', provides: ['player'] }
+    ],
+    discover: async () => [
+      {
+        machineIdentifier: 'gdm',
+        name: 'Plexamp Pi',
+        product: 'Plexamp',
+        port: 32500,
+        capabilities: ['playback'],
+        address: '192.168.1.5'
+      }
+    ],
+    probe: async () => false
+  })
 
 test('PlayerDirectory: controllabilità dalle varie fonti', async () => {
   const dir = fakeDirectory()
@@ -96,12 +130,20 @@ test('PlaybackController: server, poi diretto; se falliscono tutti nasconde i co
   dir.upsert('gdm', { viaServer: true })
 
   const calls = []
-  const plexClient = { sendPlayerCommand: async (id, cmd) => { calls.push(`server:${id}:${cmd}`); throw new Error('404') } }
+  const plexClient = {
+    sendPlayerCommand: async (id, cmd) => {
+      calls.push(`server:${id}:${cmd}`)
+      throw new Error('404')
+    }
+  }
   const controller = new PlaybackController({
     plexClient,
     directory: dir,
     getConnection: () => ({ token: 't', clientIdentifier: 'me' }),
-    httpGet: async url => { calls.push(`direct:${url}`); return {} }
+    httpGet: async url => {
+      calls.push(`direct:${url}`)
+      return {}
+    }
   })
 
   const ok = await controller.send('gdm', 'next')
@@ -109,7 +151,14 @@ test('PlaybackController: server, poi diretto; se falliscono tutti nasconde i co
   assert.equal(ok.route, 'diretto')
   assert.deepEqual(calls, ['server:gdm:skipNext', 'direct:http://192.168.1.5:32500/player/playback/skipNext'])
 
-  const failing = new PlaybackController({ plexClient, directory: dir, getConnection: () => ({}), httpGet: async () => { throw new Error('down') } })
+  const failing = new PlaybackController({
+    plexClient,
+    directory: dir,
+    getConnection: () => ({}),
+    httpGet: async () => {
+      throw new Error('down')
+    }
+  })
   const ko = await failing.send('amp', 'pause')
   assert.equal(ko.success, false)
   assert.equal(dir.isControllable('amp'), false)

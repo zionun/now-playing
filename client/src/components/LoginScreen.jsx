@@ -39,12 +39,16 @@ const QrBlock = ({ qr, error, alt }) => (
     {qr && (
       <div className="login-qr-block">
         <img src={qr.qrDataUrl} alt={alt} className="login-qr" />
-        <p className="login-alt">Oppure apri <strong>{qr.url}</strong></p>
+        <p className="login-alt">
+          Oppure apri <strong>{qr.url}</strong>
+        </p>
         <p className="login-alt">Il telefono deve essere sulla stessa rete Wi-Fi</p>
       </div>
     )}
     {!qr && !error && (
-      <div className="login-loading"><div className="spinner" /></div>
+      <div className="login-loading">
+        <div className="spinner" />
+      </div>
     )}
     {error && <div className="error-message">{error}</div>}
   </>
@@ -109,7 +113,9 @@ const ConfigQrOverlay = ({ onClose }) => {
         <h1>Configurazione</h1>
         <p className="login-hint">Inquadra il QR code con il telefono</p>
         <QrBlock qr={qr} error={error} alt="QR code per aprire la configurazione" />
-        <button className="btn btn-secondary" onClick={onClose}>Chiudi</button>
+        <button className="btn btn-secondary" onClick={onClose}>
+          Chiudi
+        </button>
       </div>
     </div>
   )
@@ -127,12 +133,7 @@ export const ConfigQrButton = () => {
 
   return (
     <>
-      <button
-        className="config-qr-button"
-        aria-label="Configurazione"
-        onClick={toggle}
-        onTouchEnd={toggle}
-      >
+      <button className="config-qr-button" aria-label="Configurazione" onClick={toggle} onTouchEnd={toggle}>
         ⚙︎
       </button>
       {open && <ConfigQrOverlay onClose={close} />}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import './HealthIndicator.css'
 
@@ -8,7 +8,8 @@ import './HealthIndicator.css'
 const describe = health => {
   const problems = []
   if (health.plex === 'unreachable') problems.push('Server Plex non raggiungibile')
-  else if (health.plex === 'polling') problems.push('Aggiornamenti Plex rallentati (eventi in tempo reale non disponibili)')
+  else if (health.plex === 'polling')
+    problems.push('Aggiornamenti Plex rallentati (eventi in tempo reale non disponibili)')
   if (health.lastfm === 'unreachable') problems.push('Last.fm non raggiungibile')
   return problems
 }

@@ -7,13 +7,25 @@ const SESSION_KEY = 'nowPlayingConfigSession'
 
 const storage = {
   get(key) {
-    try { return sessionStorage.getItem(key) } catch { return null }
+    try {
+      return sessionStorage.getItem(key)
+    } catch {
+      return null
+    }
   },
   set(key, value) {
-    try { sessionStorage.setItem(key, value) } catch { /* modalità privata */ }
+    try {
+      sessionStorage.setItem(key, value)
+    } catch {
+      /* modalità privata */
+    }
   },
   remove(key) {
-    try { sessionStorage.removeItem(key) } catch { /* modalità privata */ }
+    try {
+      sessionStorage.removeItem(key)
+    } catch {
+      /* modalità privata */
+    }
   }
 }
 

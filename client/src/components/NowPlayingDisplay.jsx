@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import TouchOverlay from './TouchOverlay'
 import IdleScreen from './IdleScreen'
@@ -18,7 +18,7 @@ const NowPlayingDisplay = () => {
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
-    
+
     return () => {
       // Reset when component unmounts
       document.body.style.overflow = 'auto'
@@ -44,7 +44,7 @@ const NowPlayingDisplay = () => {
       const now = Date.now()
       const timeSinceUpdate = now - lastUpdateTime
       const progressIncrement = (timeSinceUpdate / nowPlaying.track.duration) * 100
-      
+
       setInterpolatedProgress(prev => {
         const newProgress = prev + progressIncrement
         // Don't exceed 100% and stop if we're near the end
@@ -59,58 +59,45 @@ const NowPlayingDisplay = () => {
   const handleInteraction = () => {
     // Prevent multiple calls from touch + click
     const now = Date.now()
-    
+
     // Prevent interaction if overlay is already visible
     if (showOverlay) {
       return
     }
-    
+
     // Prevent immediate reopening if overlay was closed recently
-    const timeSinceClose = now - lastCloseTime
-    if (now - lastCloseTime < 500) { // 500ms delay after closing
+    if (now - lastCloseTime < 500) {
+      // 500ms delay after closing
       return
     }
 
     console.log('Interaction detected, showing overlay')
-    
+
     // Clear existing timeout
     if (overlayTimeout) {
       clearTimeout(overlayTimeout)
     }
-    
+
     setShowOverlay(true)
-    
+
     // Set new timeout to hide overlay - longer to give time for animations
     const newTimeout = setTimeout(() => {
       setShowOverlay(false)
     }, controlsTimeout)
-    
-    setOverlayTimeout(newTimeout)
-  }
 
-  const handleOverlayInteraction = () => {
-    // Reset the timeout when user interacts with overlay
-    if (overlayTimeout) {
-      clearTimeout(overlayTimeout)
-    }
-    
-    const newTimeout = setTimeout(() => {
-      setShowOverlay(false)
-    }, controlsTimeout)
-    
     setOverlayTimeout(newTimeout)
   }
 
   const handleCloseOverlay = () => {
     // Close overlay immediately when clicking outside
     setShowOverlay(false)
-    
+
     // Clean up existing timeout
     if (overlayTimeout) {
       clearTimeout(overlayTimeout)
       setOverlayTimeout(null)
     }
-    
+
     // Update close timestamp to prevent immediate reopening
     setLastCloseTime(Date.now())
   }
@@ -155,12 +142,10 @@ const NowPlayingDisplay = () => {
   // Show idle screen when no music is playing OR when there's a resume option available
   if ((!nowPlaying.isPlaying && !nowPlaying.isPaused) || nowPlaying.hasResumeOption) {
     return (
-      <IdleScreen 
+      <IdleScreen
         onInteraction={handleInteraction}
         hasResumeOption={nowPlaying.hasResumeOption}
         resumeTrack={nowPlaying.resumeTrack}
-        pauseTimeRemaining={nowPlaying.pauseTimeRemaining}
-        isPaused={nowPlaying.isPaused}
         hasControls={nowPlaying.hasControls}
       />
     )
@@ -174,35 +159,28 @@ const NowPlayingDisplay = () => {
   }
 
   return (
-    <div 
-      className="now-playing-container"
-      onTouchEnd={handleInteraction}
-      onClick={handleInteraction}
-    >
+    <div className="now-playing-container" onTouchEnd={handleInteraction} onClick={handleInteraction}>
       {/* Background artwork with blur effect */}
-      <div 
-        className="background-artwork"
-        style={{ backgroundImage: `url(${getArtwork()})` }}
-      />
-      
+      <div className="background-artwork" style={{ backgroundImage: `url(${getArtwork()})` }} />
+
       {/* Main content */}
       <div className="main-content">
         {/* Artwork */}
         {/* Artwork */}
         <div className="artwork-container">
-          <img 
+          <img
             src={getArtwork()}
             alt={`${track.title} - ${track.artist}`}
             className="main-artwork"
-            onError={(e) => {
+            onError={e => {
               e.target.src = '/placeholder-artwork.jpg'
             }}
           />
-          
+
           {/* Progress indicator */}
           {track.duration > 0 && (
             <div className="progress-container">
-              <div 
+              <div
                 className="progress-bar"
                 style={{
                   width: `${interpolatedProgress}%`
@@ -210,7 +188,7 @@ const NowPlayingDisplay = () => {
               />
             </div>
           )}
-          
+
           {/* Pause timer indicator - posizionato sopra l'artwork */}
           {nowPlaying.isPaused && nowPlaying.pauseTimeRemaining > 0 && (
             <div className="pause-timer">
@@ -221,21 +199,18 @@ const NowPlayingDisplay = () => {
             </div>
           )}
         </div>
-        
+
         {/* Track info */}
         <div className="track-info">
           <h1 className="track-title">{track.title}</h1>
           <h2 className="track-artist">{track.artist}</h2>
-          {track.album && (
-            <h3 className="track-album">{track.album}</h3>
-          )}
+          {track.album && <h3 className="track-album">{track.album}</h3>}
         </div>
       </div>
-      
+
       {/* Touch overlay with controls */}
-      <TouchOverlay 
+      <TouchOverlay
         show={showOverlay}
-        onInteraction={handleOverlayInteraction}
         onClose={handleCloseOverlay}
         track={track}
         isPlaying={nowPlaying.isPlaying}

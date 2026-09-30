@@ -1,15 +1,22 @@
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { initialState, reduce, toNowPlaying, PAUSE_TO_IDLE_MS } from '../src/core/screenState.js'
 import { extractMusicPlayers } from '../src/core/sessionAnalyzer.js'
 import { track, sessions } from './fixtures.js'
 
 const configured = () => reduce(initialState(), { type: 'CONFIG', configured: true, tokenValid: true })
-const withSessions = (state, ...items) => reduce(state, { type: 'SESSIONS', players: extractMusicPlayers(sessions(...items)) })
+const withSessions = (state, ...items) =>
+  reduce(state, { type: 'SESSIONS', players: extractMusicPlayers(sessions(...items)) })
 
 test('CONFIG: setup senza password, login senza Plex, altrimenti idle', () => {
-  assert.equal(reduce(initialState(), { type: 'CONFIG', configured: false, tokenValid: false }).screen, 'setup')
-  assert.equal(reduce(initialState(), { type: 'CONFIG', configured: true, tokenValid: false }).screen, 'login')
+  assert.equal(
+    reduce(initialState(), { type: 'CONFIG', configured: false, tokenValid: false }).screen,
+    'setup'
+  )
+  assert.equal(
+    reduce(initialState(), { type: 'CONFIG', configured: true, tokenValid: false }).screen,
+    'login'
+  )
   assert.equal(configured().screen, 'idle')
 })
 
@@ -79,13 +86,21 @@ test('SELECT_PLAYER mantiene la scelta finché il player esiste', () => {
 })
 
 test('toNowPlaying: playing con selettore dei player dello stesso utente', () => {
-  const state = withSessions(configured(), track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }), track({ machine: 'c', user: 2, ratingKey: 'r3' }))
+  const state = withSessions(
+    configured(),
+    track({ machine: 'a' }),
+    track({ machine: 'b', ratingKey: 'r2' }),
+    track({ machine: 'c', user: 2, ratingKey: 'r3' })
+  )
   const payload = toNowPlaying(state, { isControllable: id => id === 'a' })
   assert.equal(payload.isPlaying, true)
   assert.equal(payload.hasControls, true)
   assert.equal(payload.multiplePlayers, true)
   assert.equal(payload.multipleUsers, true)
-  assert.deepEqual(payload.activeUsers.map(p => p.id), ['a', 'b'])
+  assert.deepEqual(
+    payload.activeUsers.map(p => p.id),
+    ['a', 'b']
+  )
   assert.match(payload.track.thumb, /^\/api\/art\?path=/)
 })
 

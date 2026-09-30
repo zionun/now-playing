@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, session, SessionExpiredError, useSessionExpired } from './phone/api'
 import PhonePage from './phone/PhonePage'
 import PasswordGate, { NewPasswordForm } from './phone/PasswordGate'
@@ -136,7 +136,12 @@ const ConfigurationPanel = () => {
   const resetDevice = async e => {
     e.preventDefault()
     setResetError('')
-    if (!window.confirm('Ripristinare il dispositivo? Verranno cancellate tutta la configurazione, la password e il collegamento all\'account Plex.')) return
+    if (
+      !window.confirm(
+        "Ripristinare il dispositivo? Verranno cancellate tutta la configurazione, la password e il collegamento all'account Plex."
+      )
+    )
+      return
     try {
       await api('/api/auth/reset-device', { method: 'POST', body: { password: resetPassword } })
       session.clear()
@@ -155,7 +160,13 @@ const ConfigurationPanel = () => {
   if (!state) {
     return (
       <PhonePage title="Configurazione">
-        {error ? <p className="phone-error">{error}</p> : <div className="phone-waiting"><div className="spinner" /></div>}
+        {error ? (
+          <p className="phone-error">{error}</p>
+        ) : (
+          <div className="phone-waiting">
+            <div className="spinner" />
+          </div>
+        )}
       </PhonePage>
     )
   }
@@ -184,7 +195,10 @@ const ConfigurationPanel = () => {
         {changingPlex ? (
           <PlexConnect
             bound={state.canResetPassword}
-            onConnected={async () => { setChangingPlex(false); await load() }}
+            onConnected={async () => {
+              setChangingPlex(false)
+              await load()
+            }}
             onCancel={() => setChangingPlex(false)}
           />
         ) : (
@@ -235,7 +249,9 @@ const ConfigurationPanel = () => {
             max="10"
             step="0.5"
             value={prefs.showControlsTimeout / 1000}
-            onChange={e => setPrefs({ ...prefs, showControlsTimeout: Math.round(parseFloat(e.target.value || 0) * 1000) })}
+            onChange={e =>
+              setPrefs({ ...prefs, showControlsTimeout: Math.round(parseFloat(e.target.value || 0) * 1000) })
+            }
           />
           <label className="phone-checkbox">
             <input
@@ -246,7 +262,9 @@ const ConfigurationPanel = () => {
             Mostra i dati Last.fm quando non c'è musica
           </label>
           {prefsMessage && <p className="phone-success">{prefsMessage}</p>}
-          <button type="submit" className="phone-btn phone-btn-primary">Salva preferenze</button>
+          <button type="submit" className="phone-btn phone-btn-primary">
+            Salva preferenze
+          </button>
         </form>
       </section>
 
@@ -262,9 +280,7 @@ const ConfigurationPanel = () => {
         <details>
           <summary>Avanzate: server Plex manuale</summary>
           <form className="phone-block" onSubmit={saveAdvanced}>
-            <p className="phone-small">
-              Normalmente non serve: l'accesso con Plex imposta tutto da solo.
-            </p>
+            <p className="phone-small">Normalmente non serve: l'accesso con Plex imposta tutto da solo.</p>
             <label htmlFor="plex-url">Indirizzo del server</label>
             <input
               id="plex-url"
@@ -294,7 +310,9 @@ const ConfigurationPanel = () => {
             <button type="button" className="phone-btn phone-btn-secondary" onClick={testPlexConnection}>
               Testa connessione
             </button>
-            <button type="submit" className="phone-btn phone-btn-primary">Salva</button>
+            <button type="submit" className="phone-btn phone-btn-primary">
+              Salva
+            </button>
           </form>
         </details>
       </section>
@@ -304,9 +322,9 @@ const ConfigurationPanel = () => {
         <h2>Ripristina dispositivo</h2>
         <form className="phone-block" onSubmit={resetDevice}>
           <p className="phone-small">
-            Cancella tutta la configurazione: password, collegamento a Plex (anche l'account
-            associato), Last.fm e preferenze. Lo schermo tornerà al QR della configurazione
-            iniziale. Serve per esempio per usare un altro account Plex.
+            Cancella tutta la configurazione: password, collegamento a Plex (anche l'account associato),
+            Last.fm e preferenze. Lo schermo tornerà al QR della configurazione iniziale. Serve per esempio
+            per usare un altro account Plex.
           </p>
           <label htmlFor="reset-password">Conferma con la password</label>
           <input
@@ -318,11 +336,15 @@ const ConfigurationPanel = () => {
             required
           />
           {resetError && <p className="phone-error">{resetError}</p>}
-          <button type="submit" className="phone-btn phone-btn-danger">Ripristina dispositivo</button>
+          <button type="submit" className="phone-btn phone-btn-danger">
+            Ripristina dispositivo
+          </button>
         </form>
       </section>
 
-      <button className="phone-link" onClick={logout}>Esci</button>
+      <button className="phone-link" onClick={logout}>
+        Esci
+      </button>
     </PhonePage>
   )
 }

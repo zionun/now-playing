@@ -326,8 +326,12 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .track-info-container {
@@ -397,18 +401,54 @@
 }
 
 /* Position album items in grid (rows 2-4) */
-.album-item:nth-child(1) { grid-column: 1; grid-row: 2; }
-.album-item:nth-child(2) { grid-column: 2; grid-row: 2; }
-.album-item:nth-child(3) { grid-column: 3; grid-row: 2; }
-.album-item:nth-child(4) { grid-column: 4; grid-row: 2; }
-.album-item:nth-child(5) { grid-column: 1; grid-row: 3; }
-.album-item:nth-child(6) { grid-column: 2; grid-row: 3; }
-.album-item:nth-child(7) { grid-column: 3; grid-row: 3; }
-.album-item:nth-child(8) { grid-column: 4; grid-row: 3; }
-.album-item:nth-child(9) { grid-column: 1; grid-row: 4; }
-.album-item:nth-child(10) { grid-column: 2; grid-row: 4; }
-.album-item:nth-child(11) { grid-column: 3; grid-row: 4; }
-.album-item:nth-child(12) { grid-column: 4; grid-row: 4; }
+.album-item:nth-child(1) {
+  grid-column: 1;
+  grid-row: 2;
+}
+.album-item:nth-child(2) {
+  grid-column: 2;
+  grid-row: 2;
+}
+.album-item:nth-child(3) {
+  grid-column: 3;
+  grid-row: 2;
+}
+.album-item:nth-child(4) {
+  grid-column: 4;
+  grid-row: 2;
+}
+.album-item:nth-child(5) {
+  grid-column: 1;
+  grid-row: 3;
+}
+.album-item:nth-child(6) {
+  grid-column: 2;
+  grid-row: 3;
+}
+.album-item:nth-child(7) {
+  grid-column: 3;
+  grid-row: 3;
+}
+.album-item:nth-child(8) {
+  grid-column: 4;
+  grid-row: 3;
+}
+.album-item:nth-child(9) {
+  grid-column: 1;
+  grid-row: 4;
+}
+.album-item:nth-child(10) {
+  grid-column: 2;
+  grid-row: 4;
+}
+.album-item:nth-child(11) {
+  grid-column: 3;
+  grid-row: 4;
+}
+.album-item:nth-child(12) {
+  grid-column: 4;
+  grid-row: 4;
+}
 
 .album-item {
   position: relative;
@@ -466,27 +506,27 @@
     width: calc((100vh - 8rem) / 4 - 1rem);
     height: calc((100vh - 8rem) / 4 - 1rem);
   }
-  
+
   .track-label {
     font-size: clamp(0.6rem, 1.2vw, 0.8rem);
   }
-  
+
   .track-title {
     font-size: clamp(0.8rem, 1.8vw, 1rem);
   }
-  
+
   .track-album {
     font-size: clamp(0.7rem, 1.5vw, 0.9rem);
   }
-  
+
   .track-artist {
     font-size: clamp(0.6rem, 1.3vw, 0.8rem);
   }
-  
+
   .stat-number {
     font-size: clamp(1.5rem, 4vw, 2.5rem);
   }
-  
+
   .stat-label {
     font-size: clamp(0.6rem, 1.5vw, 0.9rem);
   }
@@ -502,12 +542,12 @@
   .idle-screen {
     padding: 0.5rem;
   }
-  
+
   .last-track {
     gap: 0.5rem;
     padding: 0.5rem;
   }
-  
+
   .scrobbles-stat {
     padding: 0.5rem;
   }

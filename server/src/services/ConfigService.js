@@ -6,6 +6,9 @@ import path from 'path'
 import bcrypt from 'bcryptjs'
 import { fileURLToPath } from 'url'
 import { DEFAULT_FILTERS, normalizeFilters } from './sessionFilters.js'
+import { createLogger } from '../lib/logger.js'
+
+const log = createLogger('config')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -29,7 +32,11 @@ export function resolveConfigPath(env = process.env) {
   return path.join(configHome, 'now-playing', 'config.json')
 }
 
-const exists = async file => fs.access(file).then(() => true, () => false)
+const exists = async file =>
+  fs.access(file).then(
+    () => true,
+    () => false
+  )
 
 export class ConfigService {
   constructor({ configPath = resolveConfigPath(), legacyPath = LEGACY_CONFIG_PATH } = {}) {
@@ -47,7 +54,7 @@ export class ConfigService {
       configData = await fs.readFile(this.configPath, 'utf8')
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
-      console.log(`Nessuna configurazione in ${this.configPath}: creo quella iniziale`)
+      log.info(`Nessuna configurazione in ${this.configPath}: creo quella iniziale`)
       this.config = this.getDefaultConfig()
       await this.saveConfig()
       return
@@ -60,7 +67,7 @@ export class ConfigService {
       // password e collegamenti si possono ancora recuperare a mano
       const brokenPath = `${this.configPath}.broken-${Date.now()}`
       await fs.rename(this.configPath, brokenPath)
-      console.error(`Configurazione non valida, spostata in ${brokenPath}: riparto da quella iniziale`)
+      log.error(`Configurazione non valida, spostata in ${brokenPath}: riparto da quella iniziale`)
       this.config = this.getDefaultConfig()
       await this.saveConfig()
       return
@@ -68,7 +75,7 @@ export class ConfigService {
 
     // I permessi potrebbero essere stati allargati a mano
     await fs.chmod(this.configPath, 0o600).catch(() => {})
-    console.log(`Configurazione caricata da ${this.configPath}`)
+    log.info(`Configurazione caricata da ${this.configPath}`)
   }
 
   // Configurazione nella vecchia posizione (dentro il repository) e non
@@ -80,7 +87,7 @@ export class ConfigService {
     const data = await fs.readFile(this.legacyPath, 'utf8')
     await this.writeAtomically(data)
     await fs.unlink(this.legacyPath)
-    console.log(`Configurazione spostata da ${this.legacyPath} a ${this.configPath}`)
+    log.info(`Configurazione spostata da ${this.legacyPath} a ${this.configPath}`)
   }
 
   // Scrittura atomica (file temporaneo + rename): un'interruzione di corrente
@@ -136,7 +143,7 @@ export class ConfigService {
     try {
       await this.writeAtomically(JSON.stringify(this.config, null, 2))
     } catch (error) {
-      console.error('Error saving config:', error)
+      log.error('Error saving config:', error)
       throw error
     }
   }
@@ -158,7 +165,10 @@ export class ConfigService {
     this.config = {
       ...this.config,
       plex: { ...this.config.plex, ...this.stripEmptySecrets(updates.plex, ['token']) },
-      lastfm: { ...this.config.lastfm, ...this.stripEmptySecrets(updates.lastfm, ['apiKey', 'apiSecret', 'sessionKey']) },
+      lastfm: {
+        ...this.config.lastfm,
+        ...this.stripEmptySecrets(updates.lastfm, ['apiKey', 'apiSecret', 'sessionKey'])
+      },
       display: { ...this.config.display, ...updates.display },
       // Le liste di utenti/player sostituiscono quelle precedenti
       filters: updates.filters
@@ -238,7 +248,7 @@ export class ConfigService {
     if (!this.config.users?.configPassword) {
       return true // No password set
     }
-    
+
     return await bcrypt.compare(password, this.config.users.configPassword)
   }
 

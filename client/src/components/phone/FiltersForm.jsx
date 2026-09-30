@@ -1,10 +1,20 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 
 // Filtri su LAN, utente e player. Una lista vuota significa "tutti": per
 // chiarezza l'interfaccia lo mostra come scelta esplicita tra "Tutti" e
 // "Solo quelli selezionati".
-const ChoiceList = ({ name, allLabel, someLabel, items, selected, onChange, getId, renderItem, emptyText }) => {
+const ChoiceList = ({
+  name,
+  allLabel,
+  someLabel,
+  items,
+  selected,
+  onChange,
+  getId,
+  renderItem,
+  emptyText
+}) => {
   const [restricted, setRestricted] = useState(selected.length > 0)
 
   useEffect(() => {
@@ -22,7 +32,10 @@ const ChoiceList = ({ name, allLabel, someLabel, items, selected, onChange, getI
           type="radio"
           name={name}
           checked={!restricted}
-          onChange={() => { setRestricted(false); onChange([]) }}
+          onChange={() => {
+            setRestricted(false)
+            onChange([])
+          }}
         />
         {allLabel}
       </label>
@@ -72,7 +85,9 @@ const FiltersForm = ({ initialFilters, onError }) => {
     }
   }, [onError])
 
-  useEffect(() => { loadOptions() }, [loadOptions])
+  useEffect(() => {
+    loadOptions()
+  }, [loadOptions])
 
   const update = changes => {
     setFilters(prev => ({ ...prev, ...changes }))
@@ -93,8 +108,8 @@ const FiltersForm = ({ initialFilters, onError }) => {
   return (
     <form className="phone-block" onSubmit={save}>
       <p className="phone-small">
-        Le sessioni escluse non compaiono mai sullo schermo: né in riproduzione, né in pausa,
-        né nella scelta del player.
+        Le sessioni escluse non compaiono mai sullo schermo: né in riproduzione, né in pausa, né nella scelta
+        del player.
       </p>
 
       <label className="phone-checkbox">
@@ -121,7 +136,9 @@ const FiltersForm = ({ initialFilters, onError }) => {
           emptyText="Nessun utente trovato sul server Plex."
         />
       ) : (
-        <div className="phone-waiting"><div className="spinner" /> Caricamento...</div>
+        <div className="phone-waiting">
+          <div className="spinner" /> Caricamento...
+        </div>
       )}
 
       <h3>Player</h3>
@@ -151,7 +168,9 @@ const FiltersForm = ({ initialFilters, onError }) => {
       </button>
 
       {message && <p className="phone-success">{message}</p>}
-      <button type="submit" className="phone-btn phone-btn-primary">Salva filtri</button>
+      <button type="submit" className="phone-btn phone-btn-primary">
+        Salva filtri
+      </button>
     </form>
   )
 }

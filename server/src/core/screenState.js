@@ -100,7 +100,11 @@ export function reduce(state, event) {
       const player = state.pause?.player || state.resumeFrom
       if (!player) return state
       // Ottimistico: il prossimo SESSIONS confermerà (o correggerà)
-      return withPlayer(state, { ...player, state: 'playing' }, { screen: 'playing', pause: null, resumeFrom: null })
+      return withPlayer(
+        state,
+        { ...player, state: 'playing' },
+        { screen: 'playing', pause: null, resumeFrom: null }
+      )
     }
 
     case 'SELECT_PLAYER': {

@@ -19,7 +19,13 @@ const FAILURE_COOLDOWN_MS = 10 * 60 * 1000
 // (viaServer) e/o direttamente (direct: indirizzo e porta). Un comando
 // fallito nasconde i controlli per quel player per 10 minuti.
 export class PlayerDirectory {
-  constructor({ plexClient, getPlayerResources, discover = gdmDiscover, probe = probeDirect, now = () => Date.now() }) {
+  constructor({
+    plexClient,
+    getPlayerResources,
+    discover = gdmDiscover,
+    probe = probeDirect,
+    now = () => Date.now()
+  }) {
     this.plexClient = plexClient
     this.getPlayerResources = getPlayerResources
     this.discover = discover
@@ -53,10 +59,16 @@ export class PlayerDirectory {
   upsert(machineIdentifier, data) {
     if (!machineIdentifier) return
     const id = String(machineIdentifier)
-    const current = this.players.get(id) || { machineIdentifier: id, viaServer: false, direct: null, sources: [] }
-    const sources = data.source && !current.sources.includes(data.source)
-      ? [...current.sources, data.source]
-      : current.sources
+    const current = this.players.get(id) || {
+      machineIdentifier: id,
+      viaServer: false,
+      direct: null,
+      sources: []
+    }
+    const sources =
+      data.source && !current.sources.includes(data.source)
+        ? [...current.sources, data.source]
+        : current.sources
     const { source, ...rest } = data
     this.players.set(id, { ...current, ...rest, sources, lastSeen: this.now() })
   }
@@ -86,7 +98,8 @@ export class PlayerDirectory {
           name: client.name,
           product: client.product || '',
           viaServer: true,
-          ...(client.address && client.port && { direct: { address: client.address, port: parseInt(client.port, 10) } }),
+          ...(client.address &&
+            client.port && { direct: { address: client.address, port: parseInt(client.port, 10) } }),
           source: 'server'
         })
       }
@@ -122,7 +135,9 @@ export class PlayerDirectory {
       }
     }
 
-    log.info(`Player noti: ${this.players.size} (${[...this.players.values()].filter(p => this.isControllable(p.machineIdentifier)).length} controllabili)`)
+    log.info(
+      `Player noti: ${this.players.size} (${[...this.players.values()].filter(p => this.isControllable(p.machineIdentifier)).length} controllabili)`
+    )
   }
 
   // I player delle sessioni in LAN hanno un indirizzo (Player.address): si
@@ -141,7 +156,10 @@ export class PlayerDirectory {
         this.probed.add(player.machineIdentifier)
         this.probe(player.address, 32500, player.machineIdentifier).then(ok => {
           if (ok) {
-            this.upsert(player.machineIdentifier, { direct: { address: player.address, port: 32500 }, source: 'probe' })
+            this.upsert(player.machineIdentifier, {
+              direct: { address: player.address, port: 32500 },
+              source: 'probe'
+            })
             log.info(`Controllo diretto disponibile per ${player.name} (${player.address})`)
           }
         })

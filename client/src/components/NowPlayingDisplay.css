@@ -118,13 +118,13 @@
     justify-content: flex-end;
     height: 100vh;
   }
-  
+
   .artwork-container {
     margin-bottom: 1rem;
     width: min(80vw, 80vh);
     height: min(80vw, 80vh);
   }
-  
+
   .track-info {
     margin-bottom: 0.5rem;
   }
@@ -178,4 +178,3 @@
   font-size: 1.2rem;
   text-align: center;
 }
-

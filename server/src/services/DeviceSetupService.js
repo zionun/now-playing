@@ -54,10 +54,12 @@ export class DeviceSetupService {
       .filter(i => i && i.family === 'IPv4' && !i.internal)
       .map(i => i.address)
     const isPrivate = a => /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a)
-    return candidates.find(a => a.startsWith('192.168.')) ||
+    return (
+      candidates.find(a => a.startsWith('192.168.')) ||
       candidates.find(isPrivate) ||
       candidates[0] ||
       'localhost'
+    )
   }
 
   getBaseUrl() {

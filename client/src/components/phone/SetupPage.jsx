@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, session, storage, SessionExpiredError, useSessionExpired } from './api'
 import PasswordGate, { NewPasswordForm } from './PasswordGate'
 import PlexConnect, { hasPendingPlexPin } from './PlexConnect'
@@ -75,7 +75,7 @@ const SetupPage = () => {
     setAuthenticated(true)
     const data = await loadState()
     // Dispositivo già configurato: si continua solo se manca Plex
-    setStep(data && !data.plexConnected ? 'plex' : (storage.get(STEP_KEY) || null))
+    setStep(data && !data.plexConnected ? 'plex' : storage.get(STEP_KEY) || null)
   }
 
   const handlePlexConnected = async () => {
@@ -90,7 +90,13 @@ const SetupPage = () => {
   if (!state) {
     return (
       <PhonePage title="Configurazione iniziale">
-        {error ? <p className="phone-error">{error}</p> : <div className="phone-waiting"><div className="spinner" /></div>}
+        {error ? (
+          <p className="phone-error">{error}</p>
+        ) : (
+          <div className="phone-waiting">
+            <div className="spinner" />
+          </div>
+        )}
       </PhonePage>
     )
   }
@@ -125,7 +131,9 @@ const SetupPage = () => {
         <PhonePage title="Accedi a Plex" subtitle={subtitle}>
           <p className="phone-status">Già collegato a {state.plexServerName || 'un server Plex'}</p>
           <div className="phone-block">
-            <button className="phone-btn phone-btn-primary" onClick={() => setStep('lastfm')}>Continua</button>
+            <button className="phone-btn phone-btn-primary" onClick={() => setStep('lastfm')}>
+              Continua
+            </button>
             <button className="phone-btn phone-btn-secondary" onClick={() => setChangingPlex(true)}>
               Ricollega Plex o cambia server
             </button>
@@ -144,8 +152,8 @@ const SetupPage = () => {
     return (
       <PhonePage title="Collega Last.fm" subtitle={subtitle}>
         <p className="phone-hint">
-          Facoltativo: quando non c'è musica in riproduzione lo schermo mostra i tuoi album più
-          ascoltati e l'ultimo brano ascoltato.
+          Facoltativo: quando non c'è musica in riproduzione lo schermo mostra i tuoi album più ascoltati e
+          l'ultimo brano ascoltato.
         </p>
         <LastfmForm
           initialUsername={state.lastfmUsername}
@@ -169,7 +177,13 @@ const SetupPage = () => {
         <p className="phone-hint">
           Per modificare la configurazione in futuro, tocca l'icona ⚙︎ sullo schermo e inquadra il QR code.
         </p>
-        <button className="phone-btn phone-btn-secondary" onClick={() => { setStep(null); window.location.href = '/config' }}>
+        <button
+          className="phone-btn phone-btn-secondary"
+          onClick={() => {
+            setStep(null)
+            window.location.href = '/config'
+          }}
+        >
           Apri la configurazione
         </button>
       </PhonePage>
@@ -179,7 +193,12 @@ const SetupPage = () => {
   return (
     <PhonePage title="Dispositivo già configurato">
       <p className="phone-hint">Puoi modificare le impostazioni dalla pagina di configurazione.</p>
-      <button className="phone-btn phone-btn-primary" onClick={() => { window.location.href = '/config' }}>
+      <button
+        className="phone-btn phone-btn-primary"
+        onClick={() => {
+          window.location.href = '/config'
+        }}
+      >
         Apri la configurazione
       </button>
     </PhonePage>

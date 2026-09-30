@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api, session } from './api'
 import { usePlexPin, hasPendingPlexPin } from './PlexConnect'
 
@@ -107,8 +107,12 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
         <h2>Reimposta password</h2>
         {reset.waiting ? (
           <div className="phone-block">
-            <div className="phone-waiting"><div className="spinner" /> Attendo la conferma da Plex...</div>
-            <button className="phone-btn phone-btn-secondary" onClick={reset.cancel}>Annulla</button>
+            <div className="phone-waiting">
+              <div className="spinner" /> Attendo la conferma da Plex...
+            </div>
+            <button className="phone-btn phone-btn-secondary" onClick={reset.cancel}>
+              Annulla
+            </button>
           </div>
         ) : (
           <div className="phone-block">
@@ -147,7 +151,14 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
           {checking ? 'Verifica...' : 'Accedi'}
         </button>
         {canResetPassword && (
-          <button type="button" className="phone-link" onClick={() => { setError(''); setMode('forgot') }}>
+          <button
+            type="button"
+            className="phone-link"
+            onClick={() => {
+              setError('')
+              setMode('forgot')
+            }}
+          >
             Password dimenticata?
           </button>
         )}

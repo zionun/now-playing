@@ -40,10 +40,19 @@ export class PlaybackController {
     }
 
     const attempts = []
-    if (player?.viaServer) attempts.push(['server', () => this.plexClient.sendPlayerCommand(machineIdentifier, plexCommand, params)])
-    if (player?.direct) attempts.push(['diretto', () => this.sendDirect(player.direct, machineIdentifier, plexCommand, params)])
+    if (player?.viaServer)
+      attempts.push([
+        'server',
+        () => this.plexClient.sendPlayerCommand(machineIdentifier, plexCommand, params)
+      ])
+    if (player?.direct)
+      attempts.push(['diretto', () => this.sendDirect(player.direct, machineIdentifier, plexCommand, params)])
     // Player sconosciuto all'elenco: un tentativo tramite il server costa poco
-    if (attempts.length === 0) attempts.push(['server', () => this.plexClient.sendPlayerCommand(machineIdentifier, plexCommand, params)])
+    if (attempts.length === 0)
+      attempts.push([
+        'server',
+        () => this.plexClient.sendPlayerCommand(machineIdentifier, plexCommand, params)
+      ])
 
     const errors = []
     for (const [route, attempt] of attempts) {

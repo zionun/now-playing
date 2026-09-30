@@ -22,7 +22,10 @@ export function parseGdmResponse(text) {
     name: headers.name || headers.product || 'Player',
     product: headers.product || '',
     port: parseInt(headers.port, 10) || 32500,
-    capabilities: (headers['protocol-capabilities'] || '').split(',').map(s => s.trim()).filter(Boolean),
+    capabilities: (headers['protocol-capabilities'] || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
     deviceClass: headers['device-class'] || ''
   }
 }
@@ -40,7 +43,11 @@ export function discoverPlayers({ timeoutMs = 2500, broadcastAddress = '255.255.
     }
 
     const finish = () => {
-      try { socket.close() } catch { /* già chiuso */ }
+      try {
+        socket.close()
+      } catch {
+        /* già chiuso */
+      }
       resolve([...found.values()])
     }
 

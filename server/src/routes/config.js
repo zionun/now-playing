@@ -7,7 +7,12 @@ let onConfigUpdated = null
 let setupService = null
 let getFilterOptions = null
 
-export function setConfigService(service, reloadCallback = null, deviceSetupService = null, filterOptions = null) {
+export function setConfigService(
+  service,
+  reloadCallback = null,
+  deviceSetupService = null,
+  filterOptions = null
+) {
   configService = service
   onConfigUpdated = reloadCallback
   setupService = deviceSetupService
@@ -21,7 +26,7 @@ router.use((req, res, next) => setupService.requireSession(req, res, next))
 router.get('/', (req, res) => {
   try {
     const config = configService.getConfig()
-    
+
     // Remove sensitive data before sending
     const safeConfig = {
       plex: {
@@ -40,7 +45,7 @@ router.get('/', (req, res) => {
       display: config.display,
       hasPassword: !!config.users?.configPassword
     }
-    
+
     res.json(safeConfig)
   } catch (error) {
     res.status(500).json({ error: error.message })

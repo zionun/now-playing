@@ -11,10 +11,12 @@ export function setLogLevel(level) {
 }
 
 export function createLogger(scope) {
-  const write = (level, method) => (...args) => {
-    if (LEVELS[level] < currentLevel) return
-    method(`[${level}] [${scope}]`, ...args)
-  }
+  const write =
+    (level, method) =>
+    (...args) => {
+      if (LEVELS[level] < currentLevel) return
+      method(`[${level}] [${scope}]`, ...args)
+    }
   return {
     debug: write('debug', console.log),
     info: write('info', console.log),

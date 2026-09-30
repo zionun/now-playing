@@ -62,12 +62,24 @@ export class LastfmService {
             isPlaying: !!track['@attr']?.nowplaying,
             lastfmUrl: track.url
           }
-        : { title: 'Nessuna traccia trovata', artist: this.config().username, album: 'Last.fm', isLastFm: true, isPlaying: false }
+        : {
+            title: 'Nessuna traccia trovata',
+            artist: this.config().username,
+            album: 'Last.fm',
+            isLastFm: true,
+            isPlaying: false
+          }
       this.fallbackCache = { data, fetchedAt: Date.now() }
       return data
     } catch (error) {
       log.warn('Ultima traccia non disponibile:', this.lastError)
-      return { title: 'Last.fm non raggiungibile', artist: '', album: 'Last.fm', isLastFm: true, isPlaying: false }
+      return {
+        title: 'Last.fm non raggiungibile',
+        artist: '',
+        album: 'Last.fm',
+        isLastFm: true,
+        isPlaying: false
+      }
     }
   }
 
@@ -82,81 +94,87 @@ export class LastfmService {
 
   async getRecentTracks(limit = 1) {
     const config = this.config()
-    const data = await this.call({ method: 'user.getrecenttracks', user: config.username, api_key: config.apiKey, limit })
+    const data = await this.call({
+      method: 'user.getrecenttracks',
+      user: config.username,
+      api_key: config.apiKey,
+      limit
+    })
     const tracks = data.recenttracks?.track || []
     return Array.isArray(tracks) ? tracks : [tracks]
   }
 
   async getTopAlbums(period = '7day', limit = 12) {
     const config = this.config()
-    const data = await this.call({ method: 'user.gettopalbums', user: config.username, api_key: config.apiKey, period, limit })
+    const data = await this.call({
+      method: 'user.gettopalbums',
+      user: config.username,
+      api_key: config.apiKey,
+      period,
+      limit
+    })
     const topAlbums = data.topalbums?.album || []
-    
+
     // Albums are already sorted by playcount from Last.fm server
-    const formattedAlbums = topAlbums
-      .slice(0, limit)
-      .map((album, index) => ({
-        name: album.name,
-        artist: {
-          name: album.artist?.name || album.artist?.['#text'] || album.artist
-        },
-        image: album.image || [],
-        playcount: album.playcount || '0',
-        url: album.url || '',
-        rank: (index + 1).toString() // Rank based on position in array
-      }))
-    
+    const formattedAlbums = topAlbums.slice(0, limit).map((album, index) => ({
+      name: album.name,
+      artist: {
+        name: album.artist?.name || album.artist?.['#text'] || album.artist
+      },
+      image: album.image || [],
+      playcount: album.playcount || '0',
+      url: album.url || '',
+      rank: (index + 1).toString() // Rank based on position in array
+    }))
+
     return formattedAlbums
   }
 
   /**
    * Gets top albums by progressively expanding time periods to fill up to the target limit.
    * This function implements a cascading approach to ensure we always have enough albums:
-   * 
+   *
    * 1. First, fetch top albums from the last 7 days
    * 2. If we don't have enough albums (< target limit), fetch from 1 month and append unique ones
    * 3. Continue with 3 months, 6 months, 12 months, and overall periods until we reach the target
    * 4. Albums are added in the order returned by each API call, maintaining Last.fm's relevance ranking
    * 5. Duplicates are filtered out based on artist name + album name combination
-   * 
+   *
    * @param {number} targetLimit - Target number of albums to return (default: 12)
    * @returns {Array} Array of formatted album objects, up to targetLimit length
    */
   async getTopAlbumsWithFallback(targetLimit = 12) {
     const periods = ['7day', '1month', '3month', '6month', '12month', 'overall']
-    let allAlbums = []
+    const allAlbums = []
     const seenAlbums = new Set() // Track unique album+artist combinations
-    
-    
+
     for (const period of periods) {
       if (allAlbums.length >= targetLimit) {
         break
       }
-      
+
       const remainingSlots = targetLimit - allAlbums.length
       log.debug(`Album dal periodo ${period} (ne mancano ${remainingSlots})`)
-      
+
       try {
         const periodAlbums = await this.getTopAlbums(period, 50) // Fetch more to increase chances of finding unique ones
-        
+
         for (const album of periodAlbums) {
           if (allAlbums.length >= targetLimit) break
-          
+
           const albumKey = `${album.artist.name}-${album.name}`.toLowerCase()
-          
+
           if (!seenAlbums.has(albumKey)) {
             seenAlbums.add(albumKey)
             allAlbums.push(album)
           }
         }
-        
-        
       } catch (error) {
         log.debug(`Album del periodo ${period} non disponibili:`, error.message)
         // Continue with next period even if this one fails
       }
     }
-    
+
     return allAlbums.slice(0, targetLimit)
   }
 
@@ -184,7 +202,8 @@ export class LastfmService {
     // This is a simplified auth flow - in production you'd want proper OAuth
     const config = this.config()
 
-    const authToken = crypto.createHash('md5')
+    const authToken = crypto
+      .createHash('md5')
       .update(username + crypto.createHash('md5').update(password).digest('hex'))
       .digest('hex')
 
@@ -201,7 +220,7 @@ export class LastfmService {
     params.api_sig = signature
 
     const response = await axios.post(this.baseUrl, new URLSearchParams(params))
-    
+
     if (response.data.error) {
       throw new Error(response.data.message || 'Authentication failed')
     }
@@ -216,7 +235,8 @@ export class LastfmService {
       .map(key => `${key}${params[key]}`)
       .join('')
 
-    return crypto.createHash('md5')
+    return crypto
+      .createHash('md5')
       .update(sortedParams + secret)
       .digest('hex')
   }

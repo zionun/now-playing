@@ -6,7 +6,9 @@ export default defineConfig({
   // Mostrata in fondo alle pagine del telefono: aiuta a capire se il
   // browser sta usando una versione vecchia dalla cache
   define: {
-    __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }))
+    __BUILD_TIME__: JSON.stringify(
+      new Date().toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
+    )
   },
   plugins: [
     react(),
@@ -72,14 +74,14 @@ export default defineConfig({
         ws: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
-            console.log('Proxy error:', err);
-          });
+            console.log('Proxy error:', err)
+          })
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-          });
+            console.log('Sending Request to the Target:', req.method, req.url)
+          })
           proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-          });
+            console.log('Received Response from the Target:', proxyRes.statusCode, req.url)
+          })
         }
       }
     }

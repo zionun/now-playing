@@ -360,7 +360,16 @@ In development the configuration is saved in `~/.config/now-playing/config.json`
 | `npm run dev:server` / `npm run dev:client` | Only one of the two |
 | `npm run build` | Builds the interface into `client/dist` |
 | `npm start` | Starts the server in production mode |
-| `cd server && npm test` | Server unit tests (`node:test`) |
+
+In `server/` and `client/`:
+
+| Command | What it does |
+|---------|--------------|
+| `npm test` | Tests (Vitest); `npm run test:watch` while developing |
+| `npm run lint` | ESLint |
+| `npm run format` / `npm run format:check` | Prettier (write / check) |
+
+Every pull request and every push to `main` runs lint, format check, tests and the client build on GitHub Actions (`.github/workflows/ci.yml`).
 
 ### Project structure
 
@@ -381,11 +390,30 @@ now-playing/
 │   │   ├── realtime/          Socket.IO handlers
 │   │   ├── services/          Configuration, Last.fm, Plex login, setup, filters
 │   │   └── lib/               Logger, backoff
-│   └── test/                  Unit tests
+│   └── test/                  Tests (Vitest)
 ├── docs/GUIDE.md              This guide
+├── .github/workflows/         CI and releases
+├── CHANGELOG.md               Version history
 ├── install.sh / update.sh     Raspberry Pi installation and updates
 ├── kiosk.sh / start-kiosk.sh  Kiosk mode
 └── ecosystem.config.cjs       PM2 configuration
 ```
+
+### Releasing
+
+Versions follow [SemVer](https://semver.org/) and every change is listed in [CHANGELOG.md](../CHANGELOG.md).
+
+1. Move the `[Unreleased]` entries of `CHANGELOG.md` under a new `## [x.y.z] - YYYY-MM-DD` heading and update the links at the bottom.
+2. Set the version in the three `package.json` files:
+   ```bash
+   for d in . client server; do (cd $d && npm version x.y.z --no-git-tag-version); done
+   ```
+3. Commit, then tag and push:
+   ```bash
+   git tag -a vx.y.z -m "vx.y.z"
+   git push origin main vx.y.z
+   ```
+
+Pushing the tag runs `.github/workflows/release.yml`, which creates the GitHub release with the text of that version's CHANGELOG section (`0.x` and `-rc` versions are marked as pre-releases). For a tag created on an older commit, run the workflow by hand from *Actions → Release → Run workflow*.
 
 Contributions are welcome: fork the repository, create a branch, commit and open a pull request.

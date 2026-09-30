@@ -31,7 +31,7 @@ export class PlexAuthService {
 
   plexHeaders(clientIdentifier) {
     return {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       'X-Plex-Product': PLEX_PRODUCT,
       'X-Plex-Client-Identifier': clientIdentifier
     }
@@ -52,7 +52,8 @@ export class PlexAuthService {
     const { id, code } = response.data
     this.pendingPins.set(String(id), { code, clientIdentifier, createdAt: Date.now(), result: null })
 
-    let authUrl = `https://app.plex.tv/auth#?clientID=${encodeURIComponent(clientIdentifier)}` +
+    let authUrl =
+      `https://app.plex.tv/auth#?clientID=${encodeURIComponent(clientIdentifier)}` +
       `&code=${encodeURIComponent(code)}` +
       `&context%5Bdevice%5D%5Bproduct%5D=${encodeURIComponent(PLEX_PRODUCT)}`
     if (forwardUrl) {
@@ -101,7 +102,12 @@ export class PlexAuthService {
     return {
       authenticated: true,
       account: { username: account.username },
-      servers: servers.map(({ name, machineIdentifier, local, owned }) => ({ name, machineIdentifier, local, owned }))
+      servers: servers.map(({ name, machineIdentifier, local, owned }) => ({
+        name,
+        machineIdentifier,
+        local,
+        owned
+      }))
     }
   }
 
@@ -142,26 +148,28 @@ export class PlexAuthService {
 
     const resources = Array.isArray(response.data) ? response.data : []
 
-    const servers = await Promise.all(resources
-      .filter(resource => (resource.provides || '').split(',').includes('server'))
-      .map(async resource => {
-        // I server condivisi hanno un accessToken proprio, diverso da
-        // quello dell'account: va usato quello quando presente.
-        const accessToken = resource.accessToken || authToken
-        const connection = await this.pickConnection(resource.connections || [], accessToken)
+    const servers = await Promise.all(
+      resources
+        .filter(resource => (resource.provides || '').split(',').includes('server'))
+        .map(async resource => {
+          // I server condivisi hanno un accessToken proprio, diverso da
+          // quello dell'account: va usato quello quando presente.
+          const accessToken = resource.accessToken || authToken
+          const connection = await this.pickConnection(resource.connections || [], accessToken)
 
-        if (!connection) return null
+          if (!connection) return null
 
-        return {
-          name: resource.name || 'Server Plex',
-          machineIdentifier: resource.clientIdentifier,
-          local: !!connection.local,
-          url: connection.address,
-          port: connection.port,
-          owned: !!resource.owned,
-          accessToken
-        }
-      }))
+          return {
+            name: resource.name || 'Server Plex',
+            machineIdentifier: resource.clientIdentifier,
+            local: !!connection.local,
+            url: connection.address,
+            port: connection.port,
+            owned: !!resource.owned,
+            accessToken
+          }
+        })
+    )
 
     return servers.filter(Boolean)
   }
@@ -181,7 +189,10 @@ export class PlexAuthService {
         machineIdentifier: resource.clientIdentifier,
         title: resource.name || resource.product || 'Player',
         product: resource.product || '',
-        provides: (resource.provides || '').split(',').map(s => s.trim()).filter(Boolean),
+        provides: (resource.provides || '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean),
         presence: !!resource.presence
       }))
   }
@@ -197,17 +208,19 @@ export class PlexAuthService {
       ...connections.filter(c => c.relay)
     ]
 
-    const reachable = await Promise.all(ordered.map(async c => {
-      try {
-        await axios.get(`http://${c.address}:${c.port}/identity`, {
-          headers: { 'Accept': 'application/json', 'X-Plex-Token': token },
-          timeout: 3000
-        })
-        return true
-      } catch {
-        return false
-      }
-    }))
+    const reachable = await Promise.all(
+      ordered.map(async c => {
+        try {
+          await axios.get(`http://${c.address}:${c.port}/identity`, {
+            headers: { Accept: 'application/json', 'X-Plex-Token': token },
+            timeout: 3000
+          })
+          return true
+        } catch {
+          return false
+        }
+      })
+    )
 
     return ordered.find((c, i) => reachable[i]) || ordered[0] || null
   }
@@ -216,7 +229,7 @@ export class PlexAuthService {
   async verifyToken(token) {
     try {
       await axios.get(`${PLEX_TV_API}/user`, {
-        headers: { 'Accept': 'application/json', 'X-Plex-Token': token },
+        headers: { Accept: 'application/json', 'X-Plex-Token': token },
         timeout: 8000
       })
       return true

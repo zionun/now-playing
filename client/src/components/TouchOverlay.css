@@ -28,7 +28,8 @@
 }
 
 @keyframes backgroundPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.3;
     transform: scale(1);
   }
@@ -126,10 +127,18 @@
   animation-fill-mode: forwards;
 }
 
-.user-button:nth-child(1) { animation-delay: 0.25s; }
-.user-button:nth-child(2) { animation-delay: 0.3s; }
-.user-button:nth-child(3) { animation-delay: 0.35s; }
-.user-button:nth-child(4) { animation-delay: 0.4s; }
+.user-button:nth-child(1) {
+  animation-delay: 0.25s;
+}
+.user-button:nth-child(2) {
+  animation-delay: 0.3s;
+}
+.user-button:nth-child(3) {
+  animation-delay: 0.35s;
+}
+.user-button:nth-child(4) {
+  animation-delay: 0.4s;
+}
 
 @keyframes userButtonSlideIn {
   to {
@@ -266,8 +275,12 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .control-button.play-pause {
@@ -367,45 +380,45 @@
     gap: 1.5rem;
     padding: 1rem;
   }
-  
+
   .media-controls {
     gap: 1.5rem;
   }
-  
+
   .control-button {
     width: 50px;
     height: 50px;
   }
-  
+
   .control-button.play-pause {
     width: 70px;
     height: 70px;
   }
-  
+
   .control-button svg {
     width: 20px;
     height: 20px;
   }
-  
+
   .control-button.play-pause svg {
     width: 28px;
     height: 28px;
   }
-  
+
   .user-button {
     min-width: 60px;
     padding: 0.8rem;
   }
-  
+
   .user-avatar {
     width: 32px;
     height: 32px;
   }
-  
+
   .overlay-track-info h2 {
     font-size: 1.2rem;
   }
-  
+
   .overlay-track-info p {
     font-size: 1rem;
   }
@@ -416,7 +429,7 @@
   .overlay-content {
     gap: 1.8rem;
   }
-  
+
   .media-controls {
     gap: 1.8rem;
   }
@@ -427,12 +440,12 @@
   .user-buttons {
     gap: 0.8rem;
   }
-  
+
   .user-button {
     min-width: 50px;
     padding: 0.6rem;
   }
-  
+
   .user-button span {
     font-size: 0.8rem;
   }
@@ -443,22 +456,22 @@
   .media-controls {
     gap: 1.5rem;
   }
-  
+
   .control-button {
     width: 115px;
     height: 115px;
   }
-  
+
   .control-button.play-pause {
     width: 150px;
     height: 150px;
   }
-  
+
   .control-button svg {
     width: 55px;
     height: 55px;
   }
-  
+
   .control-button.play-pause svg {
     width: 75px;
     height: 75px;

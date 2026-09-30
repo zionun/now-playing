@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import os from 'os'
@@ -8,10 +8,13 @@ import { ConfigService, resolveConfigPath } from '../src/services/ConfigService.
 const tempDir = () => fs.mkdtemp(path.join(os.tmpdir(), 'now-playing-test-'))
 const mode = async file => (await fs.stat(file)).mode & 0o777
 
-test('resolveConfigPath: variabile d\'ambiente, poi cartella utente', () => {
+test("resolveConfigPath: variabile d'ambiente, poi cartella utente", () => {
   assert.equal(resolveConfigPath({ NOW_PLAYING_CONFIG: '/tmp/x/config.json' }), '/tmp/x/config.json')
   if (process.getuid?.() !== 0) {
-    assert.equal(resolveConfigPath({ XDG_CONFIG_HOME: '/home/u/.config' }), '/home/u/.config/now-playing/config.json')
+    assert.equal(
+      resolveConfigPath({ XDG_CONFIG_HOME: '/home/u/.config' }),
+      '/home/u/.config/now-playing/config.json'
+    )
   }
 })
 
@@ -29,7 +32,9 @@ test('sposta la configurazione dalla vecchia posizione nel repository', async ()
   const dir = await tempDir()
   const legacyPath = path.join(dir, 'app.json')
   const configPath = path.join(dir, 'new', 'config.json')
-  await fs.writeFile(legacyPath, JSON.stringify({ plex: { token: 'abc', preferredUser: 'x' } }), { mode: 0o644 })
+  await fs.writeFile(legacyPath, JSON.stringify({ plex: { token: 'abc', preferredUser: 'x' } }), {
+    mode: 0o644
+  })
 
   const service = new ConfigService({ configPath, legacyPath })
   await service.loadConfig()

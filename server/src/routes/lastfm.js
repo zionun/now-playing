@@ -1,5 +1,4 @@
 import express from 'express'
-import { LastfmService } from '../services/LastfmService.js'
 
 const router = express.Router()
 
@@ -24,10 +23,10 @@ router.get('/idle-data', async (req, res) => {
 router.post('/test-connection', async (req, res) => {
   try {
     const userInfo = await lastfmService.getUserInfo()
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       username: userInfo.name,
-      playcount: userInfo.playcount 
+      playcount: userInfo.playcount
     })
   } catch (error) {
     res.status(400).json({ error: error.message })

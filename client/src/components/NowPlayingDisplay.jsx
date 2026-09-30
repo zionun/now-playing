@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import TouchOverlay from './TouchOverlay'
 import IdleScreen from './IdleScreen'
+import { ConfigQrButton } from './LoginScreen'
 import { useT } from '../i18n'
 import './NowPlayingDisplay.css'
 
@@ -111,9 +112,20 @@ const NowPlayingDisplay = () => {
     }
   }, [overlayTimeout])
 
+  // The ⚙︎ settings button is always shown on the idle, Last.fm and loading
+  // screens, but on the now playing screen only while the controls are open.
+  // Same position in every branch, so an open settings QR panel survives a
+  // change of screen.
+  const withSettings = (content, settingsVisible) => (
+    <>
+      {content}
+      <ConfigQrButton visible={settingsVisible} />
+    </>
+  )
+
   // Show connection status if not connected
   if (connectionStatus !== 'connected') {
-    return (
+    return withSettings(
       <div className="now-playing-container">
         <div className="connection-status">
           <div className="spinner"></div>
@@ -123,31 +135,34 @@ const NowPlayingDisplay = () => {
             {connectionStatus === 'error' && t('connection.error')}
           </p>
         </div>
-      </div>
+      </div>,
+      true
     )
   }
 
   // Safety check for malformed nowPlaying data
   if (!nowPlaying || !nowPlaying.track) {
-    return (
+    return withSettings(
       <div className="now-playing-container">
         <div className="connection-status">
           <div className="spinner"></div>
           <p>{t('connection.loading')}</p>
         </div>
-      </div>
+      </div>,
+      true
     )
   }
 
   // Show idle screen when no music is playing OR when there's a resume option available
   if ((!nowPlaying.isPlaying && !nowPlaying.isPaused) || nowPlaying.hasResumeOption) {
-    return (
+    return withSettings(
       <IdleScreen
         onInteraction={handleInteraction}
         hasResumeOption={nowPlaying.hasResumeOption}
         resumeTrack={nowPlaying.resumeTrack}
         hasControls={nowPlaying.hasControls}
-      />
+      />,
+      true
     )
   }
 
@@ -158,7 +173,7 @@ const NowPlayingDisplay = () => {
     return track.thumb || track.parentThumb || track.grandparentThumb || '/placeholder-artwork.jpg'
   }
 
-  return (
+  return withSettings(
     <div className="now-playing-container" onTouchEnd={handleInteraction} onClick={handleInteraction}>
       {/* Background artwork with blur effect */}
       <div className="background-artwork" style={{ backgroundImage: `url(${getArtwork()})` }} />
@@ -217,8 +232,10 @@ const NowPlayingDisplay = () => {
         selectedUser={nowPlaying.selectedUser}
         hasControls={nowPlaying.hasControls}
         multiplePlayers={nowPlaying.multiplePlayers}
+        multipleUsers={nowPlaying.multipleUsers}
       />
-    </div>
+    </div>,
+    showOverlay
   )
 }
 

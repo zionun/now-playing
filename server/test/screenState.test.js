@@ -85,7 +85,7 @@ test('SELECT_PLAYER keeps the choice while the player exists', () => {
   assert.equal(state.primary.machineIdentifier, 'a')
 })
 
-test("toNowPlaying: playing with the picker of the same user's players", () => {
+test('toNowPlaying: playing with every player in the picker, even of other users', () => {
   const state = withSessions(
     configured(),
     track({ machine: 'a' }),
@@ -99,8 +99,9 @@ test("toNowPlaying: playing with the picker of the same user's players", () => {
   assert.equal(payload.multipleUsers, true)
   assert.deepEqual(
     payload.activeUsers.map(p => p.id),
-    ['a', 'b']
+    ['a', 'b', 'c']
   )
+  assert.equal(payload.activeUsers[2].userTitle, 'user2')
   assert.match(payload.track.thumb, /^\/api\/art\?path=/)
 })
 
@@ -109,4 +110,51 @@ test('toNowPlaying: idle uses the Last.fm track and has no controls', () => {
   assert.equal(payload.isPlaying, false)
   assert.equal(payload.hasControls, false)
   assert.equal(payload.track.title, 'LF')
+})
+
+test('two streams, kiosk pause on one: the countdown stays on it, then the other takes over', () => {
+  const both = (aState = 'playing') => [
+    track({ machine: 'a', state: aState }),
+    track({ machine: 'b', user: 2, ratingKey: 'r2' })
+  ]
+  let state = withSessions(configured(), ...both())
+  assert.equal(state.primary.machineIdentifier, 'a')
+
+  state = reduce(state, { type: 'USER_PAUSED', machineIdentifier: 'a', now: 0 })
+  // Plex now reports "a" paused and "b" still playing: the screen stays on "a"
+  state = withSessions(state, ...both('paused'))
+  assert.equal(state.screen, 'paused')
+  assert.equal(toNowPlaying(state, { now: 5000 }).track.title, 'Song')
+  assert.equal(toNowPlaying(state, { now: 5000 }).selectedUser, 'a')
+
+  // End of the countdown: "b" is still playing, so it takes over
+  state = reduce(state, { type: 'PAUSE_EXPIRED' })
+  assert.equal(state.screen, 'playing')
+  assert.equal(state.primary.machineIdentifier, 'b')
+
+  // ...and stays there on the next update, although "a" is still paused
+  state = withSessions(state, ...both('paused'))
+  assert.equal(state.primary.machineIdentifier, 'b')
+})
+
+test('two streams, kiosk pause, the other stops during the countdown: back to idle with resume', () => {
+  let state = withSessions(configured(), track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }))
+  state = reduce(state, { type: 'USER_PAUSED', machineIdentifier: 'a', now: 0 })
+  state = withSessions(state, track({ machine: 'a', state: 'paused' }))
+  state = reduce(state, { type: 'PAUSE_EXPIRED' })
+  assert.equal(state.screen, 'resume')
+  assert.equal(state.resumeFrom.machineIdentifier, 'a')
+})
+
+test('two streams, kiosk pause, play pressed during the countdown: back on the same player', () => {
+  let state = withSessions(configured(), track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }))
+  state = reduce(state, { type: 'USER_PAUSED', machineIdentifier: 'a', now: 0 })
+  state = withSessions(
+    state,
+    track({ machine: 'a', state: 'paused' }),
+    track({ machine: 'b', ratingKey: 'r2' })
+  )
+  state = withSessions(state, track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }))
+  assert.equal(state.screen, 'playing')
+  assert.equal(state.primary.machineIdentifier, 'a')
 })

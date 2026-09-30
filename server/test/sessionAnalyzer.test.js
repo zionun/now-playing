@@ -1,11 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import {
-  extractMusicPlayers,
-  choosePrimary,
-  playersOfSameUser,
-  countUsers
-} from '../src/core/sessionAnalyzer.js'
+import { extractMusicPlayers, choosePrimary, countUsers } from '../src/core/sessionAnalyzer.js'
 import { track, sessions } from './fixtures.js'
 
 test('extractMusicPlayers: music only, one entry per player', () => {
@@ -56,17 +51,13 @@ test('choosePrimary: if none is playing, takes the first (paused)', () => {
   assert.equal(choosePrimary([]), null)
 })
 
-test('playersOfSameUser and countUsers', () => {
+test('countUsers', () => {
   const players = extractMusicPlayers(
     sessions(
       track({ machine: 'a', user: 1 }),
       track({ machine: 'b', user: 1, ratingKey: 'r2' }),
       track({ machine: 'c', user: 2, ratingKey: 'r3' })
     )
-  )
-  assert.deepEqual(
-    playersOfSameUser(players, players[0]).map(p => p.machineIdentifier),
-    ['a', 'b']
   )
   assert.equal(countUsers(players), 2)
 })

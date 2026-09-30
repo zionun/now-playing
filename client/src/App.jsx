@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import NowPlayingDisplay from './components/NowPlayingDisplay'
 import ConfigurationPanel from './components/ConfigurationPanel'
-import LoginScreen, { ConfigQrButton } from './components/LoginScreen'
+import LoginScreen from './components/LoginScreen'
 import SetupPage from './components/phone/SetupPage'
 import HealthIndicator from './components/HealthIndicator'
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext'
@@ -15,7 +15,6 @@ function Home() {
   return (
     <>
       <NowPlayingDisplay />
-      <ConfigQrButton />
       <HealthIndicator />
     </>
   )

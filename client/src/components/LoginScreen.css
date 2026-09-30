@@ -138,24 +138,33 @@
 .config-qr-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 1200;
   background: rgba(0, 0, 0, 0.92);
 }
 
 .config-qr-button {
   position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 900;
-  width: 44px;
-  height: 44px;
+  top: 14px;
+  right: 14px;
+  z-index: 1100; /* above the controls overlay */
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 1.4rem;
-  line-height: 1;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.config-qr-button svg {
+  width: 40px;
+  height: 40px;
 }
 
 .config-qr-button:active {

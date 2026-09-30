@@ -1,52 +1,30 @@
+/* The overlay is always in the page and only shown/hidden (opacity), so the
+   first tap doesn't have to create it. Deliberately light for the Pi Zero 2 W:
+   no backdrop-filter, no infinite or staggered animations, only a quick fade
+   of a single layer. */
 .touch-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: var(--overlay-bg);
-  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   cursor: pointer;
-  animation: fadeInOverlay 0.2s ease-out; /* Very fast animation */
-}
-
-/* Light pulse effect for the background */
-.touch-overlay::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, rgba(229, 160, 13, 0.1) 0%, transparent 70%);
-  animation: backgroundPulse 4s ease-in-out infinite;
+  opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  will-change: opacity;
+  transition:
+    opacity 120ms ease-out,
+    visibility 0s linear 120ms;
 }
 
-@keyframes backgroundPulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.1;
-    transform: scale(1.1);
-  }
-}
-
-/* Simplified overlay animation for the Raspberry Pi */
-@keyframes fadeInOverlay {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
+.touch-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 120ms ease-out;
 }
 
 .overlay-content {
@@ -57,41 +35,12 @@
   gap: 2rem;
   max-width: 90vw;
   text-align: center;
-  cursor: default; /* Don't propagate the click to the controls */
-  pointer-events: auto;
-  animation: slideInContent var(--transition-medium) ease-out;
-  animation-delay: 0.1s;
-  animation-fill-mode: both;
+  cursor: default; /* the click is not passed on to the controls */
 }
 
-@keyframes slideInContent {
-  from {
-    opacity: 0;
-    transform: translateY(40px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* Animated user switcher */
+/* Player switcher */
 .user-switcher {
   color: var(--text-primary);
-  animation: fadeInFromTop var(--transition-medium) ease-out;
-  animation-delay: 0.15s;
-  animation-fill-mode: both;
-}
-
-@keyframes fadeInFromTop {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .user-switcher h3 {
@@ -111,57 +60,21 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid transparent;
   border-radius: var(--border-radius);
   color: var(--text-primary);
   cursor: pointer;
-  transition: all var(--transition-fast);
   min-width: 80px;
-  /* Staggered animation for the user buttons */
-  opacity: 0;
-  transform: scale(0.8) translateY(10px);
-  animation: userButtonSlideIn var(--transition-medium) ease-out;
-  animation-fill-mode: forwards;
-}
-
-.user-button:nth-child(1) {
-  animation-delay: 0.25s;
-}
-.user-button:nth-child(2) {
-  animation-delay: 0.3s;
-}
-.user-button:nth-child(3) {
-  animation-delay: 0.35s;
-}
-.user-button:nth-child(4) {
-  animation-delay: 0.4s;
-}
-
-@keyframes userButtonSlideIn {
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.user-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: var(--accent-color);
+  touch-action: manipulation;
 }
 
 .user-button.active {
   background: var(--accent-color);
   border-color: var(--accent-color);
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
+  color: #000;
 }
 
 .user-button span {
@@ -169,25 +82,16 @@
   font-weight: 500;
 }
 
-/* Media controls with container animation */
+.user-button small {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+/* Media controls */
 .media-controls {
   display: flex;
   align-items: center;
   gap: 2rem;
-  animation: slideInControls var(--transition-medium) ease-out;
-  animation-delay: 0.2s;
-  animation-fill-mode: both;
-}
-
-@keyframes slideInControls {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .control-button {
@@ -201,14 +105,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease; /* Faster transition */
-  backdrop-filter: blur(10px);
-  /* Stato iniziale semplificato */
-  opacity: 0;
-  transform: scale(0.8);
-  /* Fast, light animation */
-  animation: buttonFadeIn 0.3s ease-out forwards;
-  /* Touch optimizations */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -216,101 +112,14 @@
   touch-action: manipulation;
 }
 
-/* Minimal delays for the Raspberry Pi */
-.media-controls .control-button:nth-child(1) {
-  animation-delay: 0.05s;
-}
-
-.media-controls .control-button:nth-child(2) {
-  animation-delay: 0.1s;
-}
-
-.media-controls .control-button:nth-child(3) {
-  animation-delay: 0.15s;
-}
-
-/* Very simple animation for the Raspberry Pi - only opacity and essential transforms */
-@keyframes buttonFadeIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.control-button:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.1);
-  /* Simplified hover for the Raspberry Pi - fewer GPU-heavy effects */
-}
-
 .control-button:active {
   transform: scale(0.95);
-  transition: transform 0.1s ease;
-}
-
-/* Stati disabilitati */
-.control-button:disabled,
-.control-button.disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  pointer-events: none;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.control-button.disabled .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid transparent;
-  border-top: 2px solid currentColor;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.control-button.play-pause.disabled {
-  background: rgba(229, 160, 13, 0.3);
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
 }
 
 .control-button.play-pause {
   width: 125px;
   height: 125px;
   background: var(--accent-color);
-  /* Stato iniziale semplificato */
-  opacity: 0;
-  transform: scale(0.7);
-  /* Fast animation tuned for the Raspberry Pi */
-  animation: playButtonFadeIn 0.4s ease-out forwards;
-  animation-delay: 0.1s; /* Delay minimo */
-}
-
-/* Simplified animation for the play button - no blur, no heavy effects */
-@keyframes playButtonFadeIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.control-button.play-pause:hover {
-  background: #f39c12;
-  transform: scale(1.15);
-  /* Simplified hover for the play button too */
 }
 
 .control-button svg {
@@ -323,24 +132,10 @@
   height: 58px;
 }
 
-/* Animated overlay track info */
+/* Track info */
 .overlay-track-info {
   color: var(--text-primary);
   max-width: 80vw;
-  animation: fadeInFromBottom var(--transition-medium) ease-out;
-  animation-delay: 0.6s;
-  animation-fill-mode: both;
-}
-
-@keyframes fadeInFromBottom {
-  from {
-    opacity: 0;
-    transform: translateY(25px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .overlay-track-info h2 {
@@ -348,30 +143,19 @@
   font-weight: 600;
   margin-bottom: 0.5rem;
   line-height: 1.3;
-  /* Text animation with a light typewriter effect */
-  animation: textGlow var(--transition-slow) ease-out;
-  animation-delay: 0.8s;
-  animation-fill-mode: both;
 }
 
 .overlay-track-info p {
   font-size: 1.1rem;
   color: var(--text-secondary);
   line-height: 1.4;
-  animation: textGlow var(--transition-slow) ease-out;
-  animation-delay: 0.9s;
-  animation-fill-mode: both;
 }
 
-@keyframes textGlow {
-  from {
-    opacity: 0;
-    filter: blur(1px);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0px);
-  }
+.controls-unavailable {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  text-align: center;
+  padding: 1rem 0;
 }
 
 /* Responsive adjustments */
@@ -410,28 +194,12 @@
     padding: 0.8rem;
   }
 
-  .user-avatar {
-    width: 32px;
-    height: 32px;
-  }
-
   .overlay-track-info h2 {
     font-size: 1.2rem;
   }
 
   .overlay-track-info p {
     font-size: 1rem;
-  }
-}
-
-/* Square screen adjustments */
-@media (aspect-ratio: 1/1) {
-  .overlay-content {
-    gap: 1.8rem;
-  }
-
-  .media-controls {
-    gap: 1.8rem;
   }
 }
 
@@ -451,8 +219,12 @@
   }
 }
 
-/* Tuning for small/square displays such as the HyperPixel 4.0 Square */
+/* Small/square displays such as the HyperPixel 4.0 Square */
 @media (max-width: 480px), (max-height: 480px), (aspect-ratio: 1/1) {
+  .overlay-content {
+    gap: 1.5rem;
+  }
+
   .media-controls {
     gap: 1.5rem;
   }
@@ -476,10 +248,4 @@
     width: 75px;
     height: 75px;
   }
-}
-.controls-unavailable {
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  text-align: center;
-  padding: 1rem 0;
 }

@@ -215,7 +215,7 @@ export class NowPlayingService extends EventEmitter {
       this.clearPauseTimers()
       this.pauseTimer = setTimeout(() => {
         this.pauseTimer = null
-        this.dispatch({ type: 'PAUSE_EXPIRED' })
+        this.dispatch({ type: 'PAUSE_EXPIRED', isControllable: id => this.directory.isControllable(id) })
         this.broadcast()
       }, PAUSE_TO_IDLE_MS)
       // The kiosk shows the countdown

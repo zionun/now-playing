@@ -63,9 +63,37 @@ describe('TouchOverlay', () => {
     expect(switchUser).toHaveBeenCalledWith('b')
   })
 
-  test('renders nothing when hidden', () => {
-    const { container } = render(<TouchOverlay show={false} onClose={() => {}} track={track} />)
-    expect(container.innerHTML).toBe('')
+  test('stays in the page when hidden, only not visible (fast first tap on the Pi)', () => {
+    const { container, rerender } = render(<TouchOverlay show={false} onClose={() => {}} track={track} />)
+    const overlay = container.querySelector('.touch-overlay')
+    expect(overlay).toBeTruthy()
+    expect(overlay.className).not.toContain('visible')
+    expect(overlay.getAttribute('aria-hidden')).toBe('true')
+
+    rerender(<TouchOverlay show onClose={() => {}} track={track} />)
+    expect(container.querySelector('.touch-overlay').className).toContain('visible')
+  })
+
+  test('player switcher lists players of different users, with the user name', () => {
+    const players = [
+      { id: 'a', name: 'Kitchen', userTitle: 'Anna' },
+      { id: 'b', name: 'Office', userTitle: 'Marco' }
+    ]
+    render(
+      <TouchOverlay
+        show
+        onClose={() => {}}
+        track={track}
+        isPlaying
+        hasControls
+        multiplePlayers
+        multipleUsers
+        activeUsers={players}
+        selectedUser="a"
+      />
+    )
+    expect(screen.getByText('Office')).toBeTruthy()
+    expect(screen.getByText('Marco')).toBeTruthy()
   })
 
   test('follows the chosen language', () => {

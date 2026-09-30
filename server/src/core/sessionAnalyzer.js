@@ -69,14 +69,6 @@ export function choosePrimary(
   return players[0]
 }
 
-// The players of the same user as the primary player: the touch overlay's
-// picker lets you switch between them.
-export function playersOfSameUser(players, primary) {
-  if (!primary) return []
-  const key = p => p.userId ?? p.userTitle ?? 'unknown-user'
-  return players.filter(p => key(p) === key(primary))
-}
-
 export function countUsers(players) {
   return new Set(players.map(p => p.userId ?? p.userTitle ?? 'unknown-user')).size
 }

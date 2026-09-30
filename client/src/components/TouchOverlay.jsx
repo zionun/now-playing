@@ -11,7 +11,8 @@ const TouchOverlay = ({
   activeUsers,
   selectedUser,
   hasControls = false,
-  multiplePlayers = false
+  multiplePlayers = false,
+  multipleUsers = false
 }) => {
   const t = useT()
   const { sendMediaControl, switchUser } = useWebSocket()
@@ -82,20 +83,25 @@ const TouchOverlay = ({
     event.stopPropagation()
   }
 
-  if (!show) {
-    return null
-  }
+  // Every player in play (after the filters) can be chosen, not only the
+  // ones of the same user
+  const showPlayerSwitch = multiplePlayers && activeUsers?.length > 1
 
-  const showPlayerSwitch = multiplePlayers && activeUsers && activeUsers.length > 1
-
+  // Always rendered and only shown/hidden: the first tap on the Pi doesn't
+  // have to build the overlay from scratch
   return (
-    <div className="touch-overlay" onClick={handleOverlayClick} onTouchEnd={handleOverlayTouch}>
+    <div
+      className={`touch-overlay ${show ? 'visible' : ''}`}
+      aria-hidden={!show}
+      onClick={handleOverlayClick}
+      onTouchEnd={handleOverlayTouch}
+    >
       <div
         className="overlay-content"
         onClick={handleContentClick}
         onTouchEnd={e => e.stopPropagation()} // keep touches on the content from closing it
       >
-        {/* Player switcher (if multiple players of same user) */}
+        {/* Player switcher (when more than one player is playing) */}
         {showPlayerSwitch && (
           <div className="user-switcher">
             <h3>{t('overlay.selectPlayer')}</h3>
@@ -108,6 +114,7 @@ const TouchOverlay = ({
                   onTouchStart={e => handleUserSwitchTouch(player.id, e)}
                 >
                   <span>{player.name || player.title || t('overlay.unnamedPlayer')}</span>
+                  {multipleUsers && player.userTitle && <small>{player.userTitle}</small>}
                 </button>
               ))}
             </div>

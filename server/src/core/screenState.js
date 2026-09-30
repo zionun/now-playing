@@ -13,7 +13,7 @@
 //   paused   pause pressed on the kiosk: the artwork stays with a countdown,
 //            then it moves to resume
 //   resume   idle with the paused track ready to resume
-import { choosePrimary, playersOfSameUser, countUsers } from './sessionAnalyzer.js'
+import { choosePrimary, countUsers } from './sessionAnalyzer.js'
 
 export const PAUSE_TO_IDLE_MS = 30000
 
@@ -60,10 +60,14 @@ export function reduce(state, event) {
       })
       const base = { ...state, players, manualSelection }
 
-      // Kiosk pause in progress: stays until it expires or something plays again
+      // Kiosk pause in progress: the screen stays on the paused player for the
+      // whole countdown, even when another player is playing, so the user can
+      // still press play. It only leaves early if that same player plays again.
       if (state.screen === 'paused' && state.pause) {
-        if (primary && primary.state === 'playing') {
-          return withPlayer(base, primary, { screen: 'playing', pause: null, resumeFrom: null })
+        const pausedId = state.pause.player.machineIdentifier
+        const resumed = players.find(p => p.machineIdentifier === pausedId && p.state === 'playing')
+        if (resumed) {
+          return withPlayer(base, resumed, { screen: 'playing', pause: null, resumeFrom: null })
         }
         return base
       }
@@ -93,6 +97,19 @@ export function reduce(state, event) {
 
     case 'PAUSE_EXPIRED': {
       if (state.screen !== 'paused' || !state.pause) return state
+      // End of the countdown: another player still playing takes over,
+      // otherwise the paused track can be resumed from the idle screen
+      const pausedId = state.pause.player.machineIdentifier
+      const others = state.players.filter(p => p.machineIdentifier !== pausedId)
+      const next = choosePrimary(others, { isControllable: event.isControllable })
+      if (next && next.state === 'playing') {
+        return withPlayer(state, next, {
+          screen: 'playing',
+          pause: null,
+          resumeFrom: null,
+          manualSelection: null
+        })
+      }
       return { ...state, screen: 'resume', resumeFrom: state.pause.player, pause: null }
     }
 
@@ -168,8 +185,9 @@ export function toNowPlaying(state, { lastfmTrack, isControllable = () => false,
     case 'playing': {
       const primary = state.primary
       if (!primary) return idle
-      const group = playersOfSameUser(state.players, primary)
-      const list = group.length > 0 ? group : [primary]
+      // Every player in play can be picked from the touch overlay (the
+      // filters have already dropped the ones not to show)
+      const list = state.players.length > 0 ? state.players : [primary]
       return {
         isPlaying: true,
         isPaused: false,

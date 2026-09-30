@@ -11,7 +11,8 @@
 #       Shows the current app and Plex state (useful before a test).
 #
 #   sudo ./recovery-test.sh wifi [seconds]
-#       Turns the Wi-Fi off for [seconds] (default 30) and back on, then
+#       Turns the Wi-Fi radio off for [seconds] (default 30) and back on, like
+#       a real Wi-Fi drop (rfkill: the network configuration stays), then
 #       measures the recovery. The SSH connection drops meanwhile: the test
 #       keeps running in the background and writes its result to a log file.
 #
@@ -60,6 +61,26 @@ plex_state() {
 # "yes" while the app is not in its normal state
 app_not_ok() { [ "$(app_state)" = "ok" ] && echo no || echo yes; }
 
+# The default route: taking an interface down (ip link down) deletes it and
+# bringing it up doesn't restore it, which a real Wi-Fi drop wouldn't do.
+default_route() { ip route show default 2>/dev/null | head -1; }
+
+wifi_off() {
+    if command -v rfkill >/dev/null; then
+        rfkill block wifi
+    else
+        ip link set "$WIFI_IFACE" down
+    fi
+}
+
+wifi_on() {
+    if command -v rfkill >/dev/null; then
+        rfkill unblock wifi
+    else
+        ip link set "$WIFI_IFACE" up
+    fi
+}
+
 wait_for() { # wait_for <function> <value> <timeout>: seconds waited, or -1
     local start
     start=$(now)
@@ -72,9 +93,20 @@ wait_for() { # wait_for <function> <value> <timeout>: seconds waited, or -1
 
 measure_recovery() {
     say "Waiting for Plex to answer again..."
-    local plex_wait
-    plex_wait=$(wait_for plex_state up "$TIMEOUT_S")
-    [ "$plex_wait" -lt 0 ] && { say "RESULT: FAIL - Plex did not come back within ${TIMEOUT_S}s"; return 1; }
+    local start state
+    start=$(now)
+    while :; do
+        state=$(plex_state)
+        [ "$state" = "up" ] && break
+        if [ $(( $(now) - start )) -ge "$TIMEOUT_S" ]; then
+            say "RESULT: FAIL - Plex not reachable from this device within ${TIMEOUT_S}s ($state)"
+            say "Network: default route '$(default_route)', addresses: $(ip -4 -o addr show "$WIFI_IFACE" 2>/dev/null | awk '{print $4}')"
+            return 1
+        fi
+        # Progress every 30 s, so a stuck network is visible in the log
+        [ $(( ($(now) - start) % 30 )) -lt 2 ] && say "  still waiting: plex $state, default route '$(default_route)'"
+        sleep 2
+    done
     say "Plex answers again"
 
     local recovery
@@ -123,11 +155,21 @@ case "$mode" in
             exit 0
         fi
         sleep 3
-        say "Wi-Fi off ($WIFI_IFACE) for ${seconds}s"
-        ip link set "$WIFI_IFACE" down
+        saved_route=$(default_route)
+        say "Wi-Fi off for ${seconds}s (default route: '$saved_route')"
+        wifi_off
         sleep "$seconds"
-        ip link set "$WIFI_IFACE" up
-        say "Wi-Fi back on"
+        wifi_on
+        say "Wi-Fi back on, waiting for the connection"
+        # Wait for the Wi-Fi to reconnect; if the default route was lost,
+        # put it back (the test must not leave the device off the network)
+        for _ in $(seq 1 30); do
+            [ -n "$(default_route)" ] && break
+            sleep 2
+        done
+        if [ -z "$(default_route)" ] && [ -n "$saved_route" ]; then
+            ip route replace $saved_route && say "Default route restored: $saved_route"
+        fi
         measure_recovery
         exit $?
         ;;

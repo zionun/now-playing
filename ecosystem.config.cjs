@@ -1,5 +1,5 @@
-// Configurazione PM2 per il Raspberry Pi (pensata per un Pi Zero 2 W: 512 MB
-// di RAM condivisi con Chromium in modalità kiosk)
+// PM2 configuration for the Raspberry Pi (sized for a Pi Zero 2 W: 512 MB of
+// RAM shared with Chromium in kiosk mode)
 module.exports = {
   apps: [{
     name: 'now-playing',
@@ -8,29 +8,29 @@ module.exports = {
     instances: 1,
     exec_mode: 'fork',
 
-    // Il server usa normalmente 80-90 MB. Heap V8 limitato, così la memoria
-    // viene recuperata prima invece di crescere; se si supera comunque la
-    // soglia (es. una perdita di memoria) PM2 riavvia il processo.
+    // The server normally uses 80-90 MB. The V8 heap is capped, so memory is
+    // reclaimed earlier instead of growing; if the threshold is exceeded anyway
+    // (e.g. a memory leak) PM2 restarts the process.
     node_args: '--max-old-space-size=128',
     max_memory_restart: '200M',
 
     env: {
       NODE_ENV: 'production',
       PORT: 3001,
-      // debug solo per indagini: in produzione niente dump degli eventi
+      // debug only for investigations: no event dumps in production
       LOG_LEVEL: 'info'
-      // La configurazione sta in /var/lib/now-playing/config.json
-      // (per spostarla: NOW_PLAYING_CONFIG=/percorso/config.json)
+      // The configuration lives in /var/lib/now-playing/config.json
+      // (to move it: NOW_PLAYING_CONFIG=/path/to/config.json)
     },
 
-    // Due soli file di log (niente file combinato che duplica le scritture
-    // sulla scheda SD); la rotazione è gestita da pm2-logrotate
+    // Only two log files (no combined file duplicating writes to the SD
+    // card); rotation is handled by pm2-logrotate
     error_file: '/var/log/pm2/now-playing-error.log',
     out_file: '/var/log/pm2/now-playing-out.log',
     time: true,
 
-    // Riavvio automatico con attesa crescente; se il processo si chiude di
-    // continuo entro 30s dall'avvio, dopo 10 tentativi PM2 smette di insistere
+    // Automatic restart with a growing delay; if the process keeps exiting
+    // within 30s of starting, PM2 gives up after 10 attempts
     autorestart: true,
     exp_backoff_restart_delay: 1000,
     min_uptime: '30s',

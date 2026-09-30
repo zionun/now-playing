@@ -1,18 +1,18 @@
-// 📋 MACCHINA A STATI DELLA SCHERMATA
-// Sostituisce i vecchi flag sparsi (manualPauseState, pauseTimer,
-// manualPlayerSelection, currentDisplayedTrack...). Tutto è puro: reduce()
-// riceve lo stato e un evento e restituisce il nuovo stato; toNowPlaying()
-// costruisce i dati da inviare al kiosk. Timer e I/O stanno fuori, in
-// NowPlayingService.
+// 📋 SCREEN STATE MACHINE
+// Replaces the old scattered flags (manualPauseState, pauseTimer,
+// manualPlayerSelection, currentDisplayedTrack...). Everything is pure:
+// reduce() takes the state and an event and returns the new state;
+// toNowPlaying() builds the data sent to the kiosk. Timers and I/O live
+// outside, in NowPlayingService.
 //
-// Stati:
-//   setup    dispositivo non configurato (niente password o niente Plex)
-//   login    Plex configurato ma il token non è più valido
-//   idle     nessuna musica (schermata Last.fm)
-//   playing  un player sta suonando
-//   paused   pausa premuta dal kiosk: la copertina resta con un conto alla
-//            rovescia, poi si passa a resume
-//   resume   idle con la traccia in pausa riprendibile
+// States:
+//   setup    device not set up (no password)
+//   login    password set but Plex not connected (or its token no longer valid)
+//   idle     no music (Last.fm screen)
+//   playing  a player is playing
+//   paused   pause pressed on the kiosk: the artwork stays with a countdown,
+//            then it moves to resume
+//   resume   idle with the paused track ready to resume
 import { choosePrimary, playersOfSameUser, countUsers } from './sessionAnalyzer.js'
 
 export const PAUSE_TO_IDLE_MS = 30000
@@ -26,8 +26,8 @@ export function initialState() {
     primary: null,
     manualSelection: null,
     displayedRatingKey: null,
-    pause: null, // { player, startedAt } quando la pausa è stata premuta dal kiosk
-    resumeFrom: null // player in pausa riprendibile (stato resume)
+    pause: null, // { player, startedAt } when the pause was pressed on the kiosk
+    resumeFrom: null // paused player that can be resumed (resume state)
   }
 }
 
@@ -60,7 +60,7 @@ export function reduce(state, event) {
       })
       const base = { ...state, players, manualSelection }
 
-      // Pausa dal kiosk in corso: resta finché scade o finché qualcosa torna a suonare
+      // Kiosk pause in progress: stays until it expires or something plays again
       if (state.screen === 'paused' && state.pause) {
         if (primary && primary.state === 'playing') {
           return withPlayer(base, primary, { screen: 'playing', pause: null, resumeFrom: null })
@@ -74,7 +74,7 @@ export function reduce(state, event) {
       if (primary && primary.state === 'paused') {
         return { ...base, primary, screen: 'resume', resumeFrom: primary, pause: null }
       }
-      // Nessuna sessione (o solo in buffering/stato sconosciuto)
+      // No session (or only buffering/unknown state)
       if (primary) return { ...base, primary }
       return { ...base, primary: null, screen: 'idle', pause: null, resumeFrom: null }
     }
@@ -99,7 +99,7 @@ export function reduce(state, event) {
     case 'USER_RESUMED': {
       const player = state.pause?.player || state.resumeFrom
       if (!player) return state
-      // Ottimistico: il prossimo SESSIONS confermerà (o correggerà)
+      // Optimistic: the next SESSIONS event confirms (or corrects) it
       return withPlayer(
         state,
         { ...player, state: 'playing' },
@@ -121,8 +121,8 @@ export function reduce(state, event) {
   }
 }
 
-// Il percorso delle copertine passa dal proxy /api/art: il token Plex non
-// deve mai arrivare al browser.
+// Artwork paths go through the /api/art proxy: the Plex token must never
+// reach the browser.
 export function artUrl(path) {
   if (!path) return null
   if (path.startsWith('http://') || path.startsWith('https://')) return path
@@ -151,7 +151,7 @@ const playerEntry = player => ({
   userTitle: player.userTitle
 })
 
-// Dati per il kiosk, nello stesso formato di sempre (evento "nowPlaying")
+// Data for the kiosk, in the usual format ("nowPlaying" event)
 export function toNowPlaying(state, { lastfmTrack, isControllable = () => false, now = Date.now() } = {}) {
   const idle = {
     isPlaying: false,

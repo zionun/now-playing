@@ -8,7 +8,7 @@ import {
 } from '../src/core/sessionAnalyzer.js'
 import { track, sessions } from './fixtures.js'
 
-test('extractMusicPlayers: solo musica, un elemento per player', () => {
+test('extractMusicPlayers: music only, one entry per player', () => {
   const players = extractMusicPlayers(
     sessions(
       track({ machine: 'a' }),
@@ -23,40 +23,40 @@ test('extractMusicPlayers: solo musica, un elemento per player', () => {
   assert.equal(players[0].local, true)
 })
 
-test('extractMusicPlayers: risposta vuota o singolo oggetto', () => {
+test('extractMusicPlayers: empty response or a single object', () => {
   assert.deepEqual(extractMusicPlayers(null), [])
   assert.deepEqual(extractMusicPlayers({ MediaContainer: { size: 0 } }), [])
   assert.equal(extractMusicPlayers({ MediaContainer: { Metadata: track({ machine: 'x' }) } }).length, 1)
 })
 
-test('choosePrimary: selezione manuale prima di tutto', () => {
+test('choosePrimary: manual selection first', () => {
   const players = extractMusicPlayers(
     sessions(track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }))
   )
   assert.equal(choosePrimary(players, { manualSelection: 'b' }).machineIdentifier, 'b')
 })
 
-test('choosePrimary: continuità sulla traccia mostrata', () => {
+test('choosePrimary: continuity on the track shown', () => {
   const players = extractMusicPlayers(
     sessions(track({ machine: 'a', ratingKey: 'r1' }), track({ machine: 'b', ratingKey: 'r2' }))
   )
   assert.equal(choosePrimary(players, { displayedRatingKey: 'r2' }).machineIdentifier, 'b')
 })
 
-test('choosePrimary: preferisce un player controllabile tra quelli che suonano', () => {
+test('choosePrimary: prefers a controllable player among those playing', () => {
   const players = extractMusicPlayers(
     sessions(track({ machine: 'a', ratingKey: 'r1' }), track({ machine: 'b', ratingKey: 'r2' }))
   )
   assert.equal(choosePrimary(players, { isControllable: id => id === 'b' }).machineIdentifier, 'b')
 })
 
-test('choosePrimary: se nessuno suona prende il primo (in pausa)', () => {
+test('choosePrimary: if none is playing, takes the first (paused)', () => {
   const players = extractMusicPlayers(sessions(track({ machine: 'a', state: 'paused' })))
   assert.equal(choosePrimary(players).machineIdentifier, 'a')
   assert.equal(choosePrimary([]), null)
 })
 
-test('playersOfSameUser e countUsers', () => {
+test('playersOfSameUser and countUsers', () => {
   const players = extractMusicPlayers(
     sessions(
       track({ machine: 'a', user: 1 }),

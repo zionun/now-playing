@@ -3,7 +3,7 @@ import { createLogger } from '../lib/logger.js'
 
 const log = createLogger('playback')
 
-// Comandi del kiosk → comandi Plex
+// Kiosk commands → Plex commands
 const PLEX_COMMANDS = {
   play: 'play',
   pause: 'pause',
@@ -14,10 +14,10 @@ const PLEX_COMMANDS = {
   skipPrevious: 'skipPrevious'
 }
 
-// 📋 CONTROLLO DELLA RIPRODUZIONE
-// Prima si prova tramite il server Plex (X-Plex-Target-Client-Identifier),
-// che funziona anche per player fuori dalla LAN; poi, se il player accetta
-// comandi diretti, con una chiamata alla sua porta (tipicamente 32500).
+// 📋 PLAYBACK CONTROL
+// First through the Plex server (X-Plex-Target-Client-Identifier), which
+// also works for players outside the LAN; then, if the player accepts
+// direct commands, with a call to its own port (usually 32500).
 export class PlaybackController {
   constructor({ plexClient, directory, getConnection, httpGet = axios.get }) {
     this.plexClient = plexClient
@@ -29,8 +29,8 @@ export class PlaybackController {
 
   async send(machineIdentifier, command, { sessionKey } = {}) {
     const plexCommand = PLEX_COMMANDS[command]
-    if (!plexCommand) return { success: false, error: `Comando sconosciuto: ${command}` }
-    if (!machineIdentifier) return { success: false, error: 'Nessun player da controllare' }
+    if (!plexCommand) return { success: false, error: `Unknown command: ${command}`, code: 'unknown_command' }
+    if (!machineIdentifier) return { success: false, error: 'No player to control', code: 'no_player' }
 
     const player = this.directory.get(machineIdentifier)
     const params = {
@@ -46,8 +46,8 @@ export class PlaybackController {
         () => this.plexClient.sendPlayerCommand(machineIdentifier, plexCommand, params)
       ])
     if (player?.direct)
-      attempts.push(['diretto', () => this.sendDirect(player.direct, machineIdentifier, plexCommand, params)])
-    // Player sconosciuto all'elenco: un tentativo tramite il server costa poco
+      attempts.push(['direct', () => this.sendDirect(player.direct, machineIdentifier, plexCommand, params)])
+    // Player unknown to the directory: a try through the server costs little
     if (attempts.length === 0)
       attempts.push([
         'server',
@@ -66,10 +66,15 @@ export class PlaybackController {
       }
     }
 
-    // Nessuna strada ha funzionato: controlli nascosti per un po'
+    // No route worked: controls hidden for a while
     this.directory.markFailed(machineIdentifier)
-    log.warn(`${command} non riuscito su ${player?.name || machineIdentifier} (${errors.join('; ')})`)
-    return { success: false, error: 'Il player non accetta comandi', details: errors }
+    log.warn(`${command} failed on ${player?.name || machineIdentifier} (${errors.join('; ')})`)
+    return {
+      success: false,
+      error: "The player doesn't accept commands",
+      code: 'player_rejected',
+      details: errors
+    }
   }
 
   sendDirect({ address, port }, machineIdentifier, plexCommand, params) {

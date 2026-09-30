@@ -29,7 +29,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 3001
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000'
 
-// 📋 CONFIGURAZIONE E SERVIZI
+// 📋 CONFIGURATION AND SERVICES
 const configService = new ConfigService()
 await configService.loadConfig()
 
@@ -37,8 +37,8 @@ const lastfmService = new LastfmService(configService)
 const plexAuthService = new PlexAuthService(configService)
 const deviceSetupService = new DeviceSetupService(configService)
 
-// La connessione a Plex si legge a ogni richiesta: env > configurazione.
-// Nessun token o indirizzo predefinito: senza configurazione l'app aspetta il setup.
+// The Plex connection is read on every request: env > configuration.
+// No default token or address: without a configuration the app waits for the setup.
 function plexConnection() {
   const plex = configService.getConfig().plex || {}
   const baseUrl = process.env.PLEX_SERVER_URL || (plex.url ? `http://${plex.url}:${plex.port || 32400}` : '')
@@ -95,16 +95,17 @@ app.use(
   })
 )
 
-// Opzioni di visualizzazione del kiosk (nessun dato riservato)
+// Kiosk display options (nothing confidential)
 app.get('/api/display-settings', (req, res) => {
   const display = configService.getConfig().display || {}
   res.json({
     showControlsTimeout: display.showControlsTimeout || 4000,
-    enableLastfmIdle: display.enableLastfmIdle !== false
+    enableLastfmIdle: display.enableLastfmIdle !== false,
+    language: ['en', 'it'].includes(display.language) ? display.language : 'auto'
   })
 })
 
-// Tutte le altre pagine sono gestite dall'app React
+// Every other page is handled by the React app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../client/dist/index.html'))
 })
@@ -121,40 +122,40 @@ const io = new Server(server, {
 })
 
 io.engine.on('connection_error', err => {
-  log.debug('Errore connessione Socket.IO:', err.message)
+  log.debug('Socket.IO connection error:', err.message)
 })
 
 attachSocketHandlers(io, nowPlaying)
 
-// 📋 ERRORI NON GESTITI
+// 📋 UNHANDLED ERRORS
 process.on('uncaughtException', err => {
-  if (err.code === 'EPIPE') return // client disconnesso a metà risposta
-  log.error('Errore non gestito:', err)
+  if (err.code === 'EPIPE') return // client disconnected mid-response
+  log.error('Unhandled error:', err)
   process.exit(1)
 })
 
 process.on('unhandledRejection', reason => {
-  log.error('Promise rifiutata:', reason)
+  log.error('Unhandled promise rejection:', reason)
 })
 
-// 📋 AVVIO
+// 📋 STARTUP
 server.listen(PORT, () => {
-  log.info(`Server avviato sulla porta ${PORT}`)
-  log.info(`Configurazione dal telefono: ${deviceSetupService.getBaseUrl()}/setup`)
+  log.info(`Server started on port ${PORT}`)
+  log.info(`Setup from the phone: ${deviceSetupService.getBaseUrl()}/setup`)
 
-  // Configurazioni create prima del login QR non conoscono l'account Plex
-  // del dispositivo, necessario per "Password dimenticata": lo si ricava
-  // dal token già salvato.
+  // Configurations created before the QR login don't know the device's Plex
+  // account, needed for "Forgot password": derive it from the token already
+  // saved.
   const plexConfig = configService.getConfig().plex || {}
   if (plexConfig.token && !plexConfig.accountId) {
     plexAuthService
       .getAccount(plexConfig.token)
       .then(account => configService.setPlexAccountId(account.id))
-      .catch(error => log.warn('Account Plex non recuperato:', error.message))
+      .catch(error => log.warn('Plex account not retrieved:', error.message))
   }
 
   if (!nowPlaying.isConfigured()) {
-    log.info('Dispositivo non configurato: inquadra il QR sullo schermo')
+    log.info('Device not set up: scan the QR code on the screen')
   }
   nowPlaying.start()
 })

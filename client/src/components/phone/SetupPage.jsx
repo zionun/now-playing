@@ -4,15 +4,20 @@ import PasswordGate, { NewPasswordForm } from './PasswordGate'
 import PlexConnect, { hasPendingPlexPin } from './PlexConnect'
 import LastfmForm from './LastfmForm'
 import PhonePage from './PhonePage'
+import { errorText, useT } from '../../i18n'
 
-// Configurazione iniziale del dispositivo, aperta dal telefono con il QR
-// mostrato dal kiosk: 1) password, 2) accesso a Plex, 3) Last.fm (facoltativo).
-// Lo step corrente resta in sessionStorage perché il login su plex.tv
-// ricarica la pagina.
+// Initial device setup, opened on the phone from the QR code shown by the
+// kiosk: 1) password, 2) Plex login, 3) Last.fm (optional). The current step
+// is kept in sessionStorage because the login on plex.tv reloads the page.
 const STEP_KEY = 'nowPlayingSetupStep'
 const STEPS = ['password', 'plex', 'lastfm']
 
+const openSettings = () => {
+  window.location.href = '/config'
+}
+
 const SetupPage = () => {
+  const t = useT()
   const [state, setState] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [step, setStepState] = useState(() => storage.get(STEP_KEY))
@@ -33,10 +38,10 @@ const SetupPage = () => {
       setState(data)
       return data
     } catch (err) {
-      setError('Impossibile contattare il dispositivo')
+      setError(errorText(t, err))
       return null
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     const init = async () => {
@@ -47,7 +52,7 @@ const SetupPage = () => {
         setStep('password')
         return
       }
-      // Una sessione già aperta (es. di ritorno da plex.tv) è ancora valida?
+      // Is a session already open (e.g. coming back from plex.tv) still valid?
       if (session.get()) {
         try {
           await api('/api/config')
@@ -56,12 +61,12 @@ const SetupPage = () => {
             setStep(hasPendingPlexPin('connect') || !data.plexConnected ? 'plex' : null)
           }
         } catch (err) {
-          if (!(err instanceof SessionExpiredError)) setError(err.message)
+          if (!(err instanceof SessionExpiredError)) setError(errorText(t, err))
         }
       }
     }
     init()
-  }, [loadState, setStep])
+  }, [loadState, setStep, t])
 
   const createPassword = async password => {
     const result = await api('/api/auth/password', { method: 'POST', body: { password } })
@@ -74,7 +79,7 @@ const SetupPage = () => {
   const handleLoggedIn = async () => {
     setAuthenticated(true)
     const data = await loadState()
-    // Dispositivo già configurato: si continua solo se manca Plex
+    // Device already set up: continue only when Plex is missing
     setStep(data && !data.plexConnected ? 'plex' : storage.get(STEP_KEY) || null)
   }
 
@@ -89,7 +94,7 @@ const SetupPage = () => {
 
   if (!state) {
     return (
-      <PhonePage title="Configurazione iniziale">
+      <PhonePage title={t('setup.title')}>
         {error ? (
           <p className="phone-error">{error}</p>
         ) : (
@@ -102,47 +107,50 @@ const SetupPage = () => {
   }
 
   const stepNumber = STEPS.indexOf(step) + 1
-  const subtitle = stepNumber > 0 ? `Passo ${stepNumber} di ${STEPS.length}` : null
+  const subtitle = stepNumber > 0 ? t('setup.step', { step: stepNumber, total: STEPS.length }) : null
 
-  // Primo avvio: si parte dalla creazione della password
+  // First start: begin by creating the password
   if (step === 'password' && !state.hasPassword) {
     return (
-      <PhonePage title="Crea una password" subtitle={subtitle}>
-        <p className="phone-hint">
-          Servirà ogni volta che vorrai modificare la configurazione di questo dispositivo.
-        </p>
-        <NewPasswordForm submitLabel="Continua" onSubmit={createPassword} />
+      <PhonePage title={t('setup.createPasswordTitle')} subtitle={subtitle}>
+        <p className="phone-hint">{t('setup.createPasswordHint')}</p>
+        <NewPasswordForm submitLabel={t('common.continue')} onSubmit={createPassword} />
       </PhonePage>
     )
   }
 
   if (!authenticated) {
     return (
-      <PhonePage title="Configurazione" subtitle={state.plexConnected ? null : 'Plex da ricollegare'}>
+      <PhonePage
+        title={t('setup.settingsTitle')}
+        subtitle={state.plexConnected ? null : t('setup.plexToReconnect')}
+      >
         <PasswordGate canResetPassword={state.canResetPassword} onAuthenticated={handleLoggedIn} />
       </PhonePage>
     )
   }
 
   if (step === 'plex') {
-    // Plex già collegato (es. configurazione precedente): si può tenere
+    // Plex already connected (e.g. an earlier configuration): it can be kept
     if (state.plexConnected && !changingPlex && !hasPendingPlexPin('connect')) {
       return (
-        <PhonePage title="Accedi a Plex" subtitle={subtitle}>
-          <p className="phone-status">Già collegato a {state.plexServerName || 'un server Plex'}</p>
+        <PhonePage title={t('setup.plexTitle')} subtitle={subtitle}>
+          <p className="phone-status">
+            {t('setup.alreadyConnected', { server: state.plexServerName || t('setup.aPlexServer') })}
+          </p>
           <div className="phone-block">
             <button className="phone-btn phone-btn-primary" onClick={() => setStep('lastfm')}>
-              Continua
+              {t('common.continue')}
             </button>
             <button className="phone-btn phone-btn-secondary" onClick={() => setChangingPlex(true)}>
-              Ricollega Plex o cambia server
+              {t('setup.reconnectOrChange')}
             </button>
           </div>
         </PhonePage>
       )
     }
     return (
-      <PhonePage title="Accedi a Plex" subtitle={subtitle}>
+      <PhonePage title={t('setup.plexTitle')} subtitle={subtitle}>
         <PlexConnect onConnected={handlePlexConnected} bound={state.canResetPassword} />
       </PhonePage>
     )
@@ -150,19 +158,16 @@ const SetupPage = () => {
 
   if (step === 'lastfm') {
     return (
-      <PhonePage title="Collega Last.fm" subtitle={subtitle}>
-        <p className="phone-hint">
-          Facoltativo: quando non c'è musica in riproduzione lo schermo mostra i tuoi album più ascoltati e
-          l'ultimo brano ascoltato.
-        </p>
+      <PhonePage title={t('setup.lastfmTitle')} subtitle={subtitle}>
+        <p className="phone-hint">{t('setup.lastfmHint')}</p>
         <LastfmForm
           initialUsername={state.lastfmUsername}
           hasApiKey={state.hasLastfmApiKey}
-          submitLabel="Collega e termina"
+          submitLabel={t('setup.connectAndFinish')}
           onSaved={finish}
           secondaryAction={
             <button type="button" className="phone-btn phone-btn-secondary" onClick={finish}>
-              Salta
+              {t('setup.skip')}
             </button>
           }
         />
@@ -172,34 +177,27 @@ const SetupPage = () => {
 
   if (step === 'done') {
     return (
-      <PhonePage title="Configurazione completata">
-        <p className="phone-success">✓ Il dispositivo è pronto: lo schermo si aggiorna da solo.</p>
-        <p className="phone-hint">
-          Per modificare la configurazione in futuro, tocca l'icona ⚙︎ sullo schermo e inquadra il QR code.
-        </p>
+      <PhonePage title={t('setup.doneTitle')}>
+        <p className="phone-success">{t('setup.doneReady')}</p>
+        <p className="phone-hint">{t('setup.doneHint')}</p>
         <button
           className="phone-btn phone-btn-secondary"
           onClick={() => {
             setStep(null)
-            window.location.href = '/config'
+            openSettings()
           }}
         >
-          Apri la configurazione
+          {t('setup.openSettings')}
         </button>
       </PhonePage>
     )
   }
 
   return (
-    <PhonePage title="Dispositivo già configurato">
-      <p className="phone-hint">Puoi modificare le impostazioni dalla pagina di configurazione.</p>
-      <button
-        className="phone-btn phone-btn-primary"
-        onClick={() => {
-          window.location.href = '/config'
-        }}
-      >
-        Apri la configurazione
+    <PhonePage title={t('setup.alreadySetUpTitle')}>
+      <p className="phone-hint">{t('setup.alreadySetUpHint')}</p>
+      <button className="phone-btn phone-btn-primary" onClick={openSettings}>
+        {t('setup.openSettings')}
       </button>
     </PhonePage>
   )

@@ -1,9 +1,11 @@
 import { useCallback, useState } from 'react'
 import { api, session } from './api'
 import { usePlexPin, hasPendingPlexPin } from './PlexConnect'
+import { errorText, useT } from '../../i18n'
 
-// Form per una nuova password (creazione al primo avvio, cambio, reset)
+// Form for a new password (created at the first start, changed, or reset)
 export const NewPasswordForm = ({ submitLabel, onSubmit }) => {
+  const t = useT()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -13,21 +15,21 @@ export const NewPasswordForm = ({ submitLabel, onSubmit }) => {
     e.preventDefault()
     setError('')
     if (password !== confirm) {
-      setError('Le due password non coincidono')
+      setError(t('errors.passwords_mismatch'))
       return
     }
     setSaving(true)
     try {
       await onSubmit(password)
     } catch (err) {
-      setError(err.message)
+      setError(errorText(t, err))
       setSaving(false)
     }
   }
 
   return (
     <form className="phone-block" onSubmit={handleSubmit}>
-      <label htmlFor="new-password">Nuova password</label>
+      <label htmlFor="new-password">{t('password.newPassword')}</label>
       <input
         id="new-password"
         type="password"
@@ -37,7 +39,7 @@ export const NewPasswordForm = ({ submitLabel, onSubmit }) => {
         required
         minLength={4}
       />
-      <label htmlFor="confirm-password">Ripeti la password</label>
+      <label htmlFor="confirm-password">{t('password.repeatPassword')}</label>
       <input
         id="confirm-password"
         type="password"
@@ -49,16 +51,16 @@ export const NewPasswordForm = ({ submitLabel, onSubmit }) => {
       />
       {error && <p className="phone-error">{error}</p>}
       <button type="submit" className="phone-btn phone-btn-primary" disabled={saving}>
-        {saving ? 'Salvataggio...' : submitLabel}
+        {saving ? t('common.saving') : submitLabel}
       </button>
     </form>
   )
 }
 
-// Richiede la password del dispositivo; "Password dimenticata?" fa rifare
-// l'accesso a Plex con l'account che ha configurato il dispositivo e poi
-// permette di sceglierne una nuova.
+// Asks for the device password; "Forgot password?" logs in to Plex again
+// with the account that set up the device, then lets the user choose a new one.
 const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
+  const t = useT()
   const [mode, setMode] = useState(() => (hasPendingPlexPin('reset') ? 'forgot' : 'login'))
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -73,7 +75,7 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
       session.set(result.session)
       onAuthenticated()
     } catch (err) {
-      setError(err.message)
+      setError(errorText(t, err))
       setChecking(false)
     }
   }
@@ -94,9 +96,9 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
   if (mode === 'newPassword') {
     return (
       <>
-        <h2>Nuova password</h2>
-        <p className="phone-hint">Accesso Plex verificato: scegli la nuova password del dispositivo.</p>
-        <NewPasswordForm submitLabel="Salva password" onSubmit={saveNewPassword} />
+        <h2>{t('password.newPasswordTitle')}</h2>
+        <p className="phone-hint">{t('password.newPasswordHint')}</p>
+        <NewPasswordForm submitLabel={t('password.savePassword')} onSubmit={saveNewPassword} />
       </>
     )
   }
@@ -104,28 +106,26 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
   if (mode === 'forgot') {
     return (
       <>
-        <h2>Reimposta password</h2>
+        <h2>{t('password.resetTitle')}</h2>
         {reset.waiting ? (
           <div className="phone-block">
             <div className="phone-waiting">
-              <div className="spinner" /> Attendo la conferma da Plex...
+              <div className="spinner" /> {t('common.waitingForPlex')}
             </div>
             <button className="phone-btn phone-btn-secondary" onClick={reset.cancel}>
-              Annulla
+              {t('common.cancel')}
             </button>
           </div>
         ) : (
           <div className="phone-block">
-            <p className="phone-hint">
-              Accedi a Plex con lo stesso account usato per configurare questo dispositivo.
-            </p>
+            <p className="phone-hint">{t('password.resetHint')}</p>
             <button className="phone-btn phone-btn-plex" onClick={reset.start} disabled={reset.starting}>
-              {reset.starting ? 'Apertura di Plex...' : 'Accedi con Plex'}
+              {reset.starting ? t('common.openingPlex') : t('common.loginWithPlex')}
             </button>
             <button className="phone-btn phone-btn-secondary" onClick={() => setMode('login')}>
-              Torna alla password
+              {t('password.backToPassword')}
             </button>
-            {reset.error && <p className="phone-error">{reset.error}</p>}
+            {reset.error && <p className="phone-error">{errorText(t, reset.error)}</p>}
           </div>
         )}
       </>
@@ -134,9 +134,9 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
 
   return (
     <>
-      <h2>Password del dispositivo</h2>
+      <h2>{t('password.title')}</h2>
       <form className="phone-block" onSubmit={handleLogin}>
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">{t('password.label')}</label>
         <input
           id="password"
           type="password"
@@ -148,7 +148,7 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
         />
         {error && <p className="phone-error">{error}</p>}
         <button type="submit" className="phone-btn phone-btn-primary" disabled={checking}>
-          {checking ? 'Verifica...' : 'Accedi'}
+          {checking ? t('common.checking') : t('password.login')}
         </button>
         {canResetPassword && (
           <button
@@ -159,7 +159,7 @@ const PasswordGate = ({ canResetPassword, onAuthenticated }) => {
               setMode('forgot')
             }}
           >
-            Password dimenticata?
+            {t('password.forgot')}
           </button>
         )}
       </form>

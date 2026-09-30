@@ -10,7 +10,7 @@ const all = sessions(
 )
 const ids = result => result.MediaContainer.Metadata.map(m => m.Player.machineIdentifier)
 
-test('filtri: nessuno, LAN, utente, player e combinazioni', () => {
+test('filters: none, LAN, user, player and combinations', () => {
   assert.deepEqual(ids(filterSessions(all, {})), ['a', 'b', 'c'])
   assert.deepEqual(ids(filterSessions(all, { lanOnly: true })), ['a', 'c'])
   assert.deepEqual(ids(filterSessions(all, { users: ['1'] })), ['a', 'b'])
@@ -19,12 +19,12 @@ test('filtri: nessuno, LAN, utente, player e combinazioni', () => {
   assert.deepEqual(ids(filterSessions(all, { users: ['2'], players: ['a'] })), [])
 })
 
-test('filtri: la risposta originale non viene modificata', () => {
+test('filters: the original response is not modified', () => {
   filterSessions(all, { lanOnly: true })
   assert.equal(all.MediaContainer.Metadata.length, 3)
 })
 
-test('SeenRegistry registra utenti e player', () => {
+test('SeenRegistry records users and players', () => {
   const registry = new SeenRegistry()
   registry.record(all)
   assert.equal(registry.recentUsers().length, 2)

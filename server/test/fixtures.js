@@ -1,4 +1,4 @@
-// Sessioni di esempio nel formato di /status/sessions
+// Sample sessions in the /status/sessions format
 export function track({
   machine,
   user = 1,

@@ -5,10 +5,10 @@ import { createLogger } from '../lib/logger.js'
 
 const log = createLogger('plex-ws')
 
-// 📋 EVENTI IN TEMPO REALE DI PLEX (WebSocket /:/websockets/notifications)
-// - riconnessione con ritardo esponenziale (1s, 2s, 4s... fino a 60s)
-// - un solo timer di riconnessione attivo alla volta
-// - eventi emessi: 'open', 'close', 'playing' (lista di PlaySessionStateNotification)
+// 📋 PLEX REAL-TIME EVENTS (WebSocket /:/websockets/notifications)
+// - reconnects with an exponential delay (1s, 2s, 4s... up to 60s)
+// - a single reconnection timer at a time
+// - emits 'open', 'close', 'playing' (list of PlaySessionStateNotification)
 export class PlexEventStream extends EventEmitter {
   constructor(getUrl, { createSocket = url => new WebSocket(url), backoff = {} } = {}) {
     super()
@@ -37,7 +37,7 @@ export class PlexEventStream extends EventEmitter {
     this.setConnected(false)
   }
 
-  // Configurazione cambiata (es. nuovo server): chiude e riapre subito
+  // Configuration changed (e.g. new server): close and reopen right away
   restart() {
     this.stop()
     this.start()
@@ -55,11 +55,11 @@ export class PlexEventStream extends EventEmitter {
     const socket = this.socket
     this.socket = null
     socket.removeAllListeners()
-    socket.on('error', () => {}) // errori residui dopo la chiusura
+    socket.on('error', () => {}) // late errors after closing
     try {
       socket.terminate()
     } catch {
-      // già chiuso
+      // already closed
     }
   }
 
@@ -76,11 +76,11 @@ export class PlexEventStream extends EventEmitter {
 
     const url = this.getUrl()
     if (!url) {
-      log.debug('Plex non configurato: WebSocket non avviato')
+      log.debug('Plex not configured: WebSocket not started')
       return
     }
 
-    log.debug(`Connessione (tentativo ${this.attempt + 1})`)
+    log.debug(`Connecting (attempt ${this.attempt + 1})`)
     const socket = this.createSocket(url)
     this.socket = socket
 
@@ -88,7 +88,7 @@ export class PlexEventStream extends EventEmitter {
       if (socket !== this.socket) return
       this.attempt = 0
       this.lastError = null
-      log.info('Connesso agli eventi in tempo reale di Plex')
+      log.info('Connected to Plex real-time events')
       this.setConnected(true)
     })
 
@@ -99,13 +99,13 @@ export class PlexEventStream extends EventEmitter {
       try {
         event = JSON.parse(data.toString())
       } catch {
-        log.debug('Messaggio non JSON ignorato')
+        log.debug('Non-JSON message ignored')
         return
       }
       const notifications = event?.NotificationContainer?.PlaySessionStateNotification
       if (notifications) {
         const list = Array.isArray(notifications) ? notifications : [notifications]
-        log.debug(`Evento playing: ${list.map(n => `${n.clientIdentifier}→${n.state}`).join(', ')}`)
+        log.debug(`Playing event: ${list.map(n => `${n.clientIdentifier}→${n.state}`).join(', ')}`)
         this.emit('playing', list)
       }
     })
@@ -128,7 +128,7 @@ export class PlexEventStream extends EventEmitter {
     if (!this.running || this.reconnectTimer) return
     const delay = backoffDelay(this.attempt, this.backoff)
     this.attempt += 1
-    log.info(`WebSocket Plex chiuso, nuovo tentativo tra ${Math.round(delay / 1000)}s`)
+    log.info(`Plex WebSocket closed, retrying in ${Math.round(delay / 1000)}s`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect()

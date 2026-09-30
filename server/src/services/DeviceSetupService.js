@@ -2,18 +2,19 @@ import axios from 'axios'
 import crypto from 'crypto'
 import os from 'os'
 import QRCode from 'qrcode'
+import { AppError } from '../lib/errors.js'
 
-// 📋 CONFIGURAZIONE DAL TELEFONO - Il kiosk mostra un QR che apre sul
-// telefono la configurazione iniziale (/setup) o quella generale (/config).
-// Ogni accesso richiede la password del dispositivo, che apre una sessione
-// temporanea: le chiamate successive si autenticano con quella.
+// 📋 SETUP FROM THE PHONE - The kiosk shows a QR code that opens the initial
+// setup (/setup) or the general settings (/config) on the phone. Every
+// access requires the device password, which opens a temporary session: the
+// following calls authenticate with it.
 const LASTFM_API = 'http://ws.audioscrobbler.com/2.0/'
 const SESSION_TTL_MS = 30 * 60 * 1000
 
 export class DeviceSetupService {
   constructor(configService) {
     this.configService = configService
-    // Sessioni attive: token -> { expiresAt }
+    // Active sessions: token -> { expiresAt }
     this.sessions = new Map()
   }
 
@@ -23,7 +24,7 @@ export class DeviceSetupService {
     return token
   }
 
-  // Valida la sessione e ne rinnova la scadenza (scade solo se inattiva)
+  // Validates the session and extends it (it only expires when idle)
   isValidSession(token) {
     const now = Date.now()
     for (const [key, session] of this.sessions) {
@@ -35,19 +36,23 @@ export class DeviceSetupService {
     return true
   }
 
-  // Dopo un cambio password le sessioni aperte non devono restare valide
+  // After a password change, open sessions must not stay valid
   clearSessions() {
     this.sessions.clear()
   }
 
-  // Middleware Express: richiede l'header X-Config-Session
+  // Express middleware: requires the X-Config-Session header
   requireSession = (req, res, next) => {
     if (this.isValidSession(req.get('X-Config-Session'))) return next()
-    res.status(401).json({ error: 'Sessione scaduta: inserisci di nuovo la password', sessionExpired: true })
+    res.status(401).json({
+      error: 'Session expired: enter the password again',
+      code: 'session_expired',
+      sessionExpired: true
+    })
   }
 
-  // Il telefono deve raggiungere il server sulla rete locale: localhost non
-  // va bene, serve l'IP LAN di questa macchina.
+  // The phone must reach the server on the local network: localhost won't
+  // do, this machine's LAN address is needed.
   getLanAddress() {
     const candidates = Object.values(os.networkInterfaces())
       .flat()
@@ -72,13 +77,13 @@ export class DeviceSetupService {
     return { url, qrDataUrl }
   }
 
-  // La API key Last.fm: da configurazione oppure dalla variabile d'ambiente
+  // The Last.fm API key: from the configuration or the environment
   getLastfmApiKey() {
     return this.configService.getConfig().lastfm?.apiKey || process.env.LASTFM_API_KEY || ''
   }
 
-  // Verifica che lo username esista davvero prima di salvarlo; restituisce
-  // il nome con le maiuscole corrette secondo Last.fm.
+  // Checks that the username really exists before saving it; returns the
+  // name with the capitalization used by Last.fm.
   async validateLastfmUser(username, apiKey) {
     try {
       const response = await axios.get(LASTFM_API, {
@@ -88,9 +93,9 @@ export class DeviceSetupService {
       return response.data.user?.name || username
     } catch (error) {
       const code = error.response?.data?.error
-      if (code === 6) throw new Error('Utente Last.fm non trovato')
-      if (code === 10 || code === 26) throw new Error('API key Last.fm non valida')
-      throw new Error('Impossibile contattare Last.fm, riprova')
+      if (code === 6) throw new AppError('lastfm_user_not_found', 'Last.fm user not found')
+      if (code === 10 || code === 26) throw new AppError('lastfm_invalid_api_key', 'Invalid Last.fm API key')
+      throw new AppError('lastfm_unreachable', "Can't reach Last.fm, please try again")
     }
   }
 }

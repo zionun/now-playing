@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
+import { LanguageContext, resolveLanguage } from '../i18n'
 
 const WebSocketContext = createContext()
 
@@ -11,6 +12,8 @@ export const useWebSocket = () => {
   return context
 }
 
+const DEFAULT_DISPLAY = { showControlsTimeout: 4000, enableLastfmIdle: true, language: 'auto' }
+
 export const WebSocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null)
   const [nowPlaying, setNowPlaying] = useState({
@@ -20,156 +23,66 @@ export const WebSocketProvider = ({ children }) => {
     selectedUser: null
   })
   const [connectionStatus, setConnectionStatus] = useState('connecting')
-  // Plex non è (ancora) configurato o il suo token non è più valido: il
-  // client deve mostrare la schermata di login invece dell'interfaccia
-  // normale. Controllato subito via HTTP (authChecked evita un flash
-  // dell'interfaccia sbagliata) e aggiornato dal socket se cambia a runtime
-  // (es. token revocato mentre l'app è aperta).
+  // The device is not set up yet, or the Plex token is no longer valid: the
+  // kiosk shows the setup QR code instead of the normal interface. Checked
+  // right away over HTTP (authChecked avoids a flash of the wrong screen) and
+  // updated by the socket at runtime (e.g. token revoked while running).
   const [authRequired, setAuthRequired] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [configVersion, setConfigVersion] = useState(0)
-  // Stato di Plex/Last.fm per l'indicatore discreto a schermo
+  // Plex/Last.fm status for the discreet on-screen indicator
   const [health, setHealth] = useState(null)
-  // Opzioni "Schermo" scelte dal telefono (durata controlli, Last.fm in idle)
-  const [display, setDisplay] = useState({ showControlsTimeout: 4000, enableLastfmIdle: true })
+  // "Screen" options chosen from the phone (controls duration, Last.fm when idle, language)
+  const [display, setDisplay] = useState(DEFAULT_DISPLAY)
 
   useEffect(() => {
     fetch('/api/display-settings')
       .then(res => res.json())
-      .then(setDisplay)
-      .catch(() => {}) // restano i valori predefiniti
+      .then(settings => setDisplay({ ...DEFAULT_DISPLAY, ...settings }))
+      .catch(() => {}) // keep the defaults
   }, [configVersion])
 
   useEffect(() => {
     fetch('/api/auth/state')
       .then(res => res.json())
       .then(data => setAuthRequired(!data.setupComplete))
-      .catch(() => {}) // il socket coprirà comunque lo stato non configurato
+      .catch(() => {}) // the socket reports the "not set up" state anyway
       .finally(() => setAuthChecked(true))
   }, [])
 
   useEffect(() => {
-    // Connect to WebSocket server with more robust settings
-    // In development, connect directly to the server port
-    // In production, use the same origin as the served content
+    // In development the client (Vite, port 3000) connects straight to the
+    // server; in production the server itself serves the page.
     const serverUrl = import.meta.env.PROD ? window.location.origin : 'http://localhost:3001'
-    console.log('WebSocket connection attempt to:', serverUrl)
 
     const socketConnection = io(serverUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
       rememberUpgrade: true,
       timeout: 20000,
-      forceNew: false,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       autoConnect: true
     })
 
-    socketConnection.on('connect', () => {
-      console.log('Connected to WebSocket server')
-      setConnectionStatus('connected')
-    })
+    socketConnection.on('connect', () => setConnectionStatus('connected'))
+    socketConnection.on('disconnect', () => setConnectionStatus('disconnected'))
+    socketConnection.on('connect_error', () => setConnectionStatus('error'))
 
-    socketConnection.on('disconnect', () => {
-      console.log('Disconnected from WebSocket server')
-      setConnectionStatus('disconnected')
-    })
-
-    socketConnection.on('connect_error', error => {
-      console.error('WebSocket connection error:', error)
-      setConnectionStatus('error')
-    })
-
-    // Listen for now playing updates
     socketConnection.on('nowPlaying', data => {
-      console.log('🔍 RECEIVED nowPlaying event from server:', data)
-
-      // Fallback di sicurezza se il server invia null o dati malformati
-      if (!data || typeof data !== 'object') {
-        console.warn('Received invalid nowPlaying data:', data)
-        const fallbackData = {
-          isPlaying: false,
-          track: {
-            title: 'Connecting...',
-            artist: 'System',
-            album: '',
-            isLastFm: false
-          },
-          activeUsers: [],
-          selectedUser: null
-        }
-        setNowPlaying(fallbackData)
-        return
-      }
-
-      // Se i dati sono già nel formato corretto (con track object), usali direttamente
-      if (data.track && typeof data.track === 'object') {
-        console.log('🔍 Data already in correct format:', data)
-        setNowPlaying(data)
-        return
-      }
-
-      // Altrimenti, converti i dati del server nel formato che il client si aspetta (legacy)
-      console.log('Key track values:', {
-        hasTrack: data.hasTrack,
-        trackTitle: data.trackTitle,
-        trackArtist: data.trackArtist,
-        oldConditionResult: data.hasTrack && data.trackTitle,
-        newConditionResult: !!data.trackTitle
-      })
-
-      const formattedData = {
-        isPlaying: data.isPlaying || false,
-        isPaused: data.isPaused || false,
-        hasResumeOption: data.hasResumeOption || false,
-        pauseTimeRemaining: data.pauseTimeRemaining || 0,
-        track: data.trackTitle
-          ? {
-              title: data.trackTitle,
-              artist: data.trackArtist || 'Unknown artist',
-              album: data.trackAlbum || '',
-              thumb: data.trackThumb || '',
-              parentThumb: data.trackParentThumb || '',
-              grandparentThumb: data.trackGrandparentThumb || '',
-              duration: data.trackDuration || 0,
-              viewOffset: data.trackViewOffset || 0,
-              isLastFm: false
-            }
-          : null,
-        resumeTrack: data.resumeTrack || null,
-        activeUsers: Array.isArray(data.activeUsers) ? data.activeUsers : [],
-        selectedUser: data.selectedUser || null,
-        multiplePlayers: data.multiplePlayers || false
-      }
-
-      console.log('🔍 Formatted nowPlaying data (LEGACY):', formattedData)
-      setNowPlaying(formattedData)
+      // Ignore malformed data instead of breaking the screen
+      if (data && typeof data === 'object') setNowPlaying(data)
     })
 
-    socketConnection.on('error', error => {
-      console.error('WebSocket error:', error)
-    })
-
-    // Plex non configurato, oppure il token è stato revocato/è scaduto
-    // Configurazione cambiata dal telefono: chi dipende da essa si ricarica
-    socketConnection.on('configUpdated', () => {
-      setConfigVersion(v => v + 1)
-    })
-
-    socketConnection.on('health', data => {
-      setHealth(data)
-    })
-
-    socketConnection.on('authRequired', () => {
-      console.log('🔑 Login Plex richiesto')
-      setAuthRequired(true)
-    })
+    // Settings changed from the phone: whatever depends on them reloads
+    socketConnection.on('configUpdated', () => setConfigVersion(v => v + 1))
+    socketConnection.on('health', setHealth)
+    // Plex not set up, or its token revoked/expired
+    socketConnection.on('authRequired', () => setAuthRequired(true))
 
     setSocket(socketConnection)
 
-    // Cleanup on unmount
     return () => {
       socketConnection.disconnect()
     }
@@ -187,9 +100,14 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
-  // Chiamato dalla schermata con il QR appena il server conferma che il
-  // dispositivo è configurato, per tornare subito all'interfaccia normale.
+  // Called by the QR screen as soon as the server confirms the device is set
+  // up, to go back to the normal interface right away.
   const markAuthenticated = useCallback(() => setAuthRequired(false), [])
+
+  const language = resolveLanguage(display.language)
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
 
   const value = {
     socket,
@@ -205,7 +123,11 @@ export const WebSocketProvider = ({ children }) => {
     markAuthenticated
   }
 
-  return <WebSocketContext.Provider value={value}>{children}</WebSocketContext.Provider>
+  return (
+    <WebSocketContext.Provider value={value}>
+      <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>
+    </WebSocketContext.Provider>
+  )
 }
 
 export default WebSocketContext

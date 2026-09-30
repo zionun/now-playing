@@ -1,6 +1,7 @@
 import { describe, test, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import TouchOverlay from './TouchOverlay'
+import { LanguageContext } from '../i18n'
 
 const sendMediaControl = vi.fn()
 const switchUser = vi.fn()
@@ -65,5 +66,14 @@ describe('TouchOverlay', () => {
   test('renders nothing when hidden', () => {
     const { container } = render(<TouchOverlay show={false} onClose={() => {}} track={track} />)
     expect(container.innerHTML).toBe('')
+  })
+
+  test('follows the chosen language', () => {
+    render(
+      <LanguageContext.Provider value="it">
+        <TouchOverlay show onClose={() => {}} track={track} isPlaying hasControls={false} />
+      </LanguageContext.Provider>
+    )
+    expect(screen.getByText('Questo player non accetta comandi da qui')).toBeTruthy()
   })
 })

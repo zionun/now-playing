@@ -283,7 +283,7 @@
   backdrop-filter: blur(4px);
   z-index: 10;
   color: var(--accent-color);
-  /* Ottimizzazioni per touch */
+  /* Touch optimizations */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -552,7 +552,7 @@
     padding: 0.5rem;
   }
 }
-/* Riprendi, quando i dati Last.fm in idle sono disattivati */
+/* Resume button, when Last.fm data is turned off in idle */
 .idle-resume-button {
   margin-top: 1.5rem;
   padding: 0.8rem 1.4rem;

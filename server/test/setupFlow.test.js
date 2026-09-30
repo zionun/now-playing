@@ -125,7 +125,11 @@ test('first run: the device is not set up', async () => {
 })
 
 test('step 1: password (too short is refused, then created once)', async () => {
-  assert.equal((await call('POST', '/api/auth/password', { body: { password: 'ab' } })).status, 400)
+  const tooShort = await call('POST', '/api/auth/password', { body: { password: 'ab' } })
+  assert.equal(tooShort.status, 400)
+  // Errors carry a code (translated by the interface) and its parameters
+  assert.equal(tooShort.body.code, 'password_too_short')
+  assert.deepEqual(tooShort.body.params, { min: 4 })
 
   const created = await call('POST', '/api/auth/password', { body: { password: 'secret1' } })
   assert.equal(created.status, 200)
@@ -203,6 +207,8 @@ test('the device stays bound to the setup Plex account', async () => {
     body: { pinId: pin.body.pinId, machineIdentifier: 'srv-1' }
   })
   assert.equal(selected.status, 403)
+  assert.equal(selected.body.code, 'wrong_plex_account')
+  assert.equal(selected.body.params.username, 'intruder')
   assert.equal(configService.getConfig().plex.accountId, '42')
 })
 

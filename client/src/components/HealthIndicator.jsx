@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
+import { useT } from '../i18n'
 import './HealthIndicator.css'
 
-// Indicatore discreto: compare solo se qualcosa non va (Plex irraggiungibile,
-// aggiornamenti in polling invece che in tempo reale, Last.fm non
-// raggiungibile). Toccandolo mostra il dettaglio per qualche secondo.
-const describe = health => {
+// Discreet indicator: it appears only when something is wrong (Plex not
+// reachable, updates by polling instead of real time, Last.fm not
+// reachable). Tapping it shows the details for a few seconds.
+const describe = (health, t) => {
   const problems = []
-  if (health.plex === 'unreachable') problems.push('Server Plex non raggiungibile')
-  else if (health.plex === 'polling')
-    problems.push('Aggiornamenti Plex rallentati (eventi in tempo reale non disponibili)')
-  if (health.lastfm === 'unreachable') problems.push('Last.fm non raggiungibile')
+  if (health.plex === 'unreachable') problems.push(t('health.plexUnreachable'))
+  else if (health.plex === 'polling') problems.push(t('health.plexPolling'))
+  if (health.lastfm === 'unreachable') problems.push(t('health.lastfmUnreachable'))
   return problems
 }
 
 const HealthIndicator = () => {
+  const t = useT()
   const { health, connectionStatus } = useWebSocket()
   const [expanded, setExpanded] = useState(false)
 
@@ -24,9 +25,9 @@ const HealthIndicator = () => {
     return () => clearTimeout(timer)
   }, [expanded])
 
-  // Senza connessione al server lo schermo mostra già il suo messaggio
+  // Without a connection to the server the screen already shows its own message
   if (!health || connectionStatus !== 'connected') return null
-  const problems = describe(health)
+  const problems = describe(health, t)
   if (problems.length === 0) return null
 
   const toggle = e => {

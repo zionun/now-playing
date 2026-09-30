@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 
-// Chiamate delle pagine aperte dal telefono (/setup, /config). La sessione
-// ottenuta con la password vive in sessionStorage: sopravvive al passaggio
-// su plex.tv per il login, ma non resta sul telefono dopo aver chiuso la scheda.
+// Calls from the pages opened on the phone (/setup, /config). The session
+// obtained with the password lives in sessionStorage: it survives the trip to
+// plex.tv for the login, but doesn't stay on the phone once the tab is closed.
 const SESSION_KEY = 'nowPlayingConfigSession'
 
 const storage = {
@@ -17,14 +17,14 @@ const storage = {
     try {
       sessionStorage.setItem(key, value)
     } catch {
-      /* modalità privata */
+      /* private browsing */
     }
   },
   remove(key) {
     try {
       sessionStorage.removeItem(key)
     } catch {
-      /* modalità privata */
+      /* private browsing */
     }
   }
 }
@@ -37,7 +37,16 @@ export const session = {
 
 export { storage }
 
-export class SessionExpiredError extends Error {}
+// API error: the code (and its params) is translated by errorText() in i18n
+export class ApiError extends Error {
+  constructor(message, code, params) {
+    super(message)
+    this.code = code
+    this.params = params
+  }
+}
+
+export class SessionExpiredError extends ApiError {}
 
 export const SESSION_EXPIRED_EVENT = 'nowplaying:session-expired'
 
@@ -61,19 +70,23 @@ export async function api(path, { method = 'GET', body } = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     })
   } catch {
-    // Errore di rete (Safari: "Load failed"): messaggio comprensibile
-    throw new Error('Impossibile contattare il dispositivo, controlla la rete e riprova')
+    // Network error (Safari: "Load failed")
+    throw new ApiError('Network error', 'network')
   }
   const data = await response.json().catch(() => ({}))
 
   if (response.status === 401 && data.sessionExpired) {
     session.clear()
-    // Le pagine tornano alla richiesta della password
+    // The pages go back to asking for the password
     window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
-    throw new SessionExpiredError(data.error)
+    throw new SessionExpiredError(data.error, 'session_expired')
   }
   if (!response.ok) {
-    throw new Error(data.error || 'Errore imprevisto, riprova')
+    throw new ApiError(
+      data.error || 'Unexpected error',
+      data.code || (data.error ? undefined : 'unexpected'),
+      data.params
+    )
   }
   return data
 }

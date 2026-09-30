@@ -2,9 +2,9 @@ import { createLogger } from '../lib/logger.js'
 
 const log = createLogger('socket')
 
-// 📋 SOCKET.IO - Collega il kiosk al servizio principale.
-// Dal server: nowPlaying, authRequired, configUpdated, health
-// Dal kiosk: mediaControl, switchUser, resumeFromPause
+// 📋 SOCKET.IO - Connects the kiosk to the main service.
+// From the server: nowPlaying, authRequired, configUpdated, health
+// From the kiosk: mediaControl, switchUser, resumeFromPause
 export function attachSocketHandlers(io, nowPlaying) {
   const forward = event => data => io.emit(event, data)
   nowPlaying.on('nowPlaying', forward('nowPlaying'))
@@ -13,9 +13,9 @@ export function attachSocketHandlers(io, nowPlaying) {
   nowPlaying.on('health', forward('health'))
 
   io.on('connection', async socket => {
-    log.debug(`Kiosk connesso (${io.engine.clientsCount} in totale)`)
+    log.debug(`Kiosk connected (${io.engine.clientsCount} in total)`)
 
-    // Dispositivo non configurato: il kiosk mostra subito il QR
+    // Device not set up: the kiosk shows the QR code right away
     if (!nowPlaying.isConfigured()) {
       socket.emit('authRequired', { reason: 'not_configured' })
     }
@@ -24,7 +24,7 @@ export function attachSocketHandlers(io, nowPlaying) {
     if (health) socket.emit('health', health)
 
     socket.on('mediaControl', async (data = {}) => {
-      // Formato nuovo {command} e vecchio {type}
+      // New {command} and old {type} formats
       const command = data.command || data.type
       const result = await nowPlaying.mediaControl(command, {
         sessionKey: data.sessionKey,
@@ -37,12 +37,12 @@ export function attachSocketHandlers(io, nowPlaying) {
       socket.emit('resumeResponse', await nowPlaying.resume())
     })
 
-    // Scelta del player dal touch overlay (nome storico: switchUser)
+    // Player chosen from the touch overlay (historical name: switchUser)
     socket.on('switchUser', async machineIdentifier => {
       await nowPlaying.selectPlayer(machineIdentifier)
     })
 
-    socket.on('error', error => log.debug('Errore socket:', error.message))
-    socket.on('disconnect', () => log.debug('Kiosk disconnesso'))
+    socket.on('error', error => log.debug('Socket error:', error.message))
+    socket.on('disconnect', () => log.debug('Kiosk disconnected'))
   })
 }

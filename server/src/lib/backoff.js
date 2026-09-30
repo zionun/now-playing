@@ -1,6 +1,6 @@
-// Ritardo esponenziale con tetto e un po' di casualità (jitter), così più
-// dispositivi che si riconnettono insieme non colpiscono il server allo
-// stesso istante. attempt parte da 0.
+// Exponential delay with a cap and some randomness (jitter), so devices
+// reconnecting together don't hit the server at the same instant. attempt
+// starts at 0.
 export function backoffDelay(
   attempt,
   { baseMs = 1000, maxMs = 60000, jitter = 0.2, random = Math.random } = {}

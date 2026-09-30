@@ -1,7 +1,7 @@
-// 📋 LOG CON LIVELLI - Il livello si sceglie con LOG_LEVEL (debug, info,
-// warn, error; predefinito info). In produzione sul Raspberry i messaggi di
-// debug non vengono scritti: niente dump degli eventi a ogni messaggio, meno
-// scritture sulla scheda SD.
+// 📋 LEVELED LOGS - The level is set with LOG_LEVEL (debug, info, warn,
+// error; default info). In production on the Raspberry Pi debug messages are
+// not written: no event dumps on every message, fewer
+// writes to the SD card.
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40, silent: 100 }
 
 let currentLevel = LEVELS[(process.env.LOG_LEVEL || 'info').toLowerCase()] ?? LEVELS.info

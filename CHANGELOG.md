@@ -19,6 +19,8 @@ Work towards v1.0.0 (roadmap phases 4–6).
 - Unit and integration tests with Vitest (server logic, full setup flow against a simulated
   Plex, key React components), ESLint and Prettier, CI on GitHub Actions.
 - Release workflow creating GitHub releases from this changelog.
+- Interface in English and Italian, with a language setting (automatic = device language);
+  API errors carry codes translated by the interface.
 
 ### Changed
 
@@ -33,6 +35,7 @@ Work towards v1.0.0 (roadmap phases 4–6).
   needs (`bcryptjs` replaces `bcrypt`, no compilers needed).
 - Playback controls are shown only when the player really accepts commands.
 - README split into a quick start and a complete guide (`docs/GUIDE.md`).
+- Code, comments and logs are in English.
 
 ### Removed
 

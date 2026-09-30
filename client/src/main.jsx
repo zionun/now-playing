@@ -5,7 +5,7 @@ import App from './App.jsx'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 
-// Aggiornamento automatico: con una nuova build la pagina si ricarica da sola
+// Automatic update: with a new build the page reloads by itself
 registerSW({ immediate: true })
 
 ReactDOM.createRoot(document.getElementById('root')).render(

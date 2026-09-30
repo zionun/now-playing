@@ -6,11 +6,11 @@ import SetupPage from './components/phone/SetupPage'
 import HealthIndicator from './components/HealthIndicator'
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext'
 
-// Mostra il QR di configurazione al posto dell'interfaccia normale finché il
-// dispositivo non è configurato (o se il token Plex è stato revocato).
+// Shows the setup QR code instead of the normal interface until the device
+// is set up (or when the Plex token has been revoked).
 function Home() {
   const { authRequired, authChecked } = useWebSocket()
-  if (!authChecked) return null // evita un flash dell'interfaccia sbagliata
+  if (!authChecked) return null // avoids a flash of the wrong screen
   if (authRequired) return <LoginScreen />
   return (
     <>

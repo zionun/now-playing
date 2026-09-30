@@ -1,38 +1,40 @@
 #!/bin/bash
-# Avvia Chromium in modalità kiosk sull'HyperPixel (720x720).
-# Lanciato da start-kiosk.sh tramite xinit, quindi SENZA window manager.
+# Starts Chromium in kiosk mode on the HyperPixel (720x720).
+# Launched by start-kiosk.sh through xinit, so WITHOUT a window manager.
 
 export DISPLAY=:0
 URL="http://localhost:3001"
-SIZE="${KIOSK_SIZE:-720,720}"          # risoluzione dell'HyperPixel Square
+SIZE="${KIOSK_SIZE:-720,720}"          # HyperPixel Square resolution
 PROFILE=/tmp/chromium-kiosk
 LOG=/tmp/kiosk-chromium.log
 
-# 1. Aspetta che X sia pronto
+# 1. Wait for X to be ready
 until xset q &>/dev/null; do
     sleep 0.2
 done
 
-# Niente screensaver/DPMS, sfondo nero al posto del grigio/bianco di X
+# No screensaver/DPMS, black background instead of X's grey/white
 xset s off
 xset s noblank
 xset -dpms
 xsetroot -solid black 2>/dev/null || true
 
-# 2. Aspetta che il server serva davvero la SPA (non solo che la porta sia aperta).
-#    Timeout di sicurezza: dopo 120 s parte comunque, la pagina si riprenderà da sola.
+# 2. Wait until the server really serves the app (not just an open port).
+#    Safety timeout: after 120 s start anyway, the page recovers by itself.
 for _ in $(seq 1 240); do
     curl -sf --max-time 2 "$URL/" | grep -q 'id="root"' && break
     sleep 0.5
 done
 
-# Profilo pulito a ogni avvio (evita "ripristina sessione" e lock rimasti da un crash)
+# Clean profile on every start (no "restore session" or locks left by a crash)
 rm -rf "$PROFILE"
 
-# 3. Chromium in kiosk. Senza window manager --kiosk non conosce la dimensione
-#    dello schermo, quindi la finestra viene dimensionata esplicitamente.
-#    --no-memcheck evita l'avviso "meno di 1 GB di RAM" del wrapper Raspberry Pi.
-#    La traduzione è disattivata anche via policy (/etc/chromium/policies/managed).
+# 3. Chromium in kiosk mode. Without a window manager --kiosk doesn't know the
+#    screen size, so the window is sized explicitly.
+#    --no-memcheck avoids the "less than 1 GB of RAM" warning of the Raspberry Pi wrapper.
+#    Translation is also disabled by policy (/etc/chromium/policies/managed).
+#    --lang sets the browser language, followed by the app when its language
+#    setting is "Automatic".
 chromium \
   --user-data-dir="$PROFILE" \
   --no-sandbox \
@@ -61,13 +63,13 @@ chromium \
   "$URL" >"$LOG" 2>&1 &
 CHROMIUM_PID=$!
 
-# 4. Watchdog: la prima navigazione a volte non parte (finestra "Untitled").
-#    Controlla ogni secondo il titolo della finestra:
-#    - "Now Playing..."  -> pagina caricata, il watchdog termina;
-#    - "Untitled"/vuoto  -> documento non ancora arrivato: dopo $grace secondi F5;
-#    - altro (es. "localhost:3001" mentre carica) -> sta caricando, non si tocca.
-#    Dopo ogni reload l'attesa raddoppia (4, 8, 16, 30 s): sullo Zero 2W un
-#    reload può impiegare parecchio e non va interrotto da un altro reload.
+# 4. Watchdog: the first navigation sometimes doesn't start ("Untitled" window).
+#    Checks the window title every second:
+#    - "Now Playing..."  -> page loaded, the watchdog ends;
+#    - "Untitled"/empty  -> document not arrived yet: F5 after $grace seconds;
+#    - anything else (e.g. "localhost:3001" while loading) -> loading, leave it.
+#    After each reload the wait doubles (4, 8, 16, 30 s): on the Zero 2W a
+#    reload can take a while and must not be interrupted by another one.
 TITLE="Now Playing"
 grace=4
 waited=0
@@ -78,20 +80,20 @@ for _ in $(seq 1 180); do
     [ -z "$WID" ] && continue
     name=$(xdotool getwindowname "$WID" 2>/dev/null)
     if echo "$name" | grep -q "$TITLE"; then
-        echo "$(date +%T) pagina caricata" >>"$LOG"
+        echo "$(date +%T) page loaded" >>"$LOG"
         break
     fi
     case "$name" in
         ""|Untitled*) waited=$((waited + 1)) ;;
-        *)            waited=0; continue ;;   # sta caricando
+        *)            waited=0; continue ;;   # loading
     esac
     if [ "$waited" -ge "$grace" ]; then
-        echo "$(date +%T) titolo '$name' dopo ${grace}s, reload" >>"$LOG"
+        echo "$(date +%T) title '$name' after ${grace}s, reloading" >>"$LOG"
         xdotool key --window "$WID" F5
         waited=0
         grace=$((grace * 2)); [ "$grace" -gt 30 ] && grace=30
     fi
 done
 
-# xinit chiude X quando questo script termina: resta agganciato a Chromium
+# xinit closes X when this script ends: stay attached to Chromium
 wait "$CHROMIUM_PID"

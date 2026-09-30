@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import TouchOverlay from './TouchOverlay'
 import IdleScreen from './IdleScreen'
+import { useT } from '../i18n'
 import './NowPlayingDisplay.css'
 
 const NowPlayingDisplay = () => {
+  const t = useT()
   const { nowPlaying, connectionStatus, display } = useWebSocket()
-  // Durata dei controlli a schermo, scelta dal telefono (Impostazioni → Schermo)
+  // On-screen controls duration, chosen from the phone (Settings → Screen)
   const controlsTimeout = display?.showControlsTimeout || 4000
   const [showOverlay, setShowOverlay] = useState(false)
   const [overlayTimeout, setOverlayTimeout] = useState(null)
@@ -71,8 +73,6 @@ const NowPlayingDisplay = () => {
       return
     }
 
-    console.log('Interaction detected, showing overlay')
-
     // Clear existing timeout
     if (overlayTimeout) {
       clearTimeout(overlayTimeout)
@@ -118,9 +118,9 @@ const NowPlayingDisplay = () => {
         <div className="connection-status">
           <div className="spinner"></div>
           <p>
-            {connectionStatus === 'connecting' && 'Connecting...'}
-            {connectionStatus === 'disconnected' && 'Connection lost'}
-            {connectionStatus === 'error' && 'Connection error'}
+            {connectionStatus === 'connecting' && t('connection.connecting')}
+            {connectionStatus === 'disconnected' && t('connection.lost')}
+            {connectionStatus === 'error' && t('connection.error')}
           </p>
         </div>
       </div>
@@ -133,7 +133,7 @@ const NowPlayingDisplay = () => {
       <div className="now-playing-container">
         <div className="connection-status">
           <div className="spinner"></div>
-          <p>Loading data...</p>
+          <p>{t('connection.loading')}</p>
         </div>
       </div>
     )
@@ -166,7 +166,6 @@ const NowPlayingDisplay = () => {
       {/* Main content */}
       <div className="main-content">
         {/* Artwork */}
-        {/* Artwork */}
         <div className="artwork-container">
           <img
             src={getArtwork()}
@@ -189,12 +188,12 @@ const NowPlayingDisplay = () => {
             </div>
           )}
 
-          {/* Pause timer indicator - posizionato sopra l'artwork */}
+          {/* Pause countdown, over the artwork */}
           {nowPlaying.isPaused && nowPlaying.pauseTimeRemaining > 0 && (
             <div className="pause-timer">
-              <div className="pause-indicator">⏸️ In pausa</div>
+              <div className="pause-indicator">⏸️ {t('playing.paused')}</div>
               <div className="pause-countdown">
-                Idle in {Math.ceil(nowPlaying.pauseTimeRemaining / 1000)}s
+                {t('playing.idleIn', { seconds: Math.ceil(nowPlaying.pauseTimeRemaining / 1000) })}
               </div>
             </div>
           )}

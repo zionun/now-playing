@@ -7,7 +7,7 @@ import { PlexEventStream } from '../src/plex/PlexEventStream.js'
 import { PlayerDirectory } from '../src/plex/PlayerDirectory.js'
 import { PlaybackController } from '../src/plex/PlaybackController.js'
 
-test('backoff esponenziale con tetto', () => {
+test('exponential backoff with a cap', () => {
   const noJitter = { jitter: 0, baseMs: 1000, maxMs: 60000 }
   assert.deepEqual(
     [0, 1, 2, 3].map(a => backoffDelay(a, noJitter)),
@@ -18,7 +18,7 @@ test('backoff esponenziale con tetto', () => {
   assert.ok(d <= 4800 && d >= 3200)
 })
 
-test('GDM: risposta di un player', () => {
+test('GDM: a player response', () => {
   const player = parseGdmResponse(
     [
       'HTTP/1.0 200 OK',
@@ -43,7 +43,7 @@ class FakeSocket extends EventEmitter {
   }
 }
 
-test('WebSocket: un solo timer di riconnessione, con ritardo crescente', async () => {
+test('WebSocket: a single reconnection timer, with a growing delay', async () => {
   const sockets = []
   const stream = new PlexEventStream(() => 'ws://plex', {
     createSocket: () => {
@@ -67,7 +67,7 @@ test('WebSocket: un solo timer di riconnessione, con ritardo crescente', async (
     })
   )
   sockets[0].emit('close')
-  // error + close ravvicinati non devono creare due timer
+  // error + close arriving together must not create two timers
   assert.ok(stream.reconnectTimer)
   const timer = stream.reconnectTimer
   stream.scheduleReconnect()
@@ -110,13 +110,13 @@ const fakeDirectory = () =>
     probe: async () => false
   })
 
-test('PlayerDirectory: controllabilità dalle varie fonti', async () => {
+test('PlayerDirectory: controllability from the various sources', async () => {
   const dir = fakeDirectory()
   await dir.refresh({ force: true })
-  assert.equal(dir.isControllable('srv'), true) // /clients del server
+  assert.equal(dir.isControllable('srv'), true) // the server's /clients
   assert.equal(dir.isControllable('amp'), true) // plex.tv pubsub-player
-  assert.equal(dir.isControllable('web'), false) // solo "player", non controllabile a distanza
-  assert.equal(dir.isControllable('gdm'), true) // GDM con playback
+  assert.equal(dir.isControllable('web'), false) // only "player", not remotely controllable
+  assert.equal(dir.isControllable('gdm'), true) // GDM with playback
   assert.equal(dir.isControllable('ignoto'), false)
   dir.markFailed('gdm')
   assert.equal(dir.isControllable('gdm'), false)
@@ -124,7 +124,7 @@ test('PlayerDirectory: controllabilità dalle varie fonti', async () => {
   assert.equal(dir.isControllable('gdm'), true)
 })
 
-test('PlaybackController: server, poi diretto; se falliscono tutti nasconde i controlli', async () => {
+test('PlaybackController: server, then direct; if all fail the controls are hidden', async () => {
   const dir = fakeDirectory()
   await dir.refresh({ force: true })
   dir.upsert('gdm', { viaServer: true })
@@ -148,7 +148,7 @@ test('PlaybackController: server, poi diretto; se falliscono tutti nasconde i co
 
   const ok = await controller.send('gdm', 'next')
   assert.equal(ok.success, true)
-  assert.equal(ok.route, 'diretto')
+  assert.equal(ok.route, 'direct')
   assert.deepEqual(calls, ['server:gdm:skipNext', 'direct:http://192.168.1.5:32500/player/playback/skipNext'])
 
   const failing = new PlaybackController({

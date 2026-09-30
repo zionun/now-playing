@@ -1,9 +1,9 @@
 import dgram from 'dgram'
 
-// 📋 GDM (G'Day Mate) - La discovery nativa di Plex sulla rete locale.
-// Si invia un M-SEARCH in broadcast sulla porta UDP 32412 e i player Plex
-// (Plexamp, Plex HTPC, app TV...) rispondono con nome, porta e capacità.
-// Niente comandi di shell né dipendenze esterne come nmap.
+// 📋 GDM (G'Day Mate) - Plex's own discovery on the local network.
+// An M-SEARCH is broadcast on UDP port 32412 and Plex players (Plexamp,
+// Plex HTPC, TV apps...) answer with their name, port and capabilities.
+// No shell commands or external tools such as nmap.
 const GDM_PLAYER_PORT = 32412
 const SEARCH_MESSAGE = Buffer.from('M-SEARCH * HTTP/1.1\r\n\r\n')
 
@@ -30,7 +30,7 @@ export function parseGdmResponse(text) {
   }
 }
 
-// Restituisce i player che hanno risposto entro timeoutMs
+// Returns the players that answered within timeoutMs
 export function discoverPlayers({ timeoutMs = 2500, broadcastAddress = '255.255.255.255' } = {}) {
   return new Promise(resolve => {
     const found = new Map()
@@ -46,7 +46,7 @@ export function discoverPlayers({ timeoutMs = 2500, broadcastAddress = '255.255.
       try {
         socket.close()
       } catch {
-        /* già chiuso */
+        /* already closed */
       }
       resolve([...found.values()])
     }

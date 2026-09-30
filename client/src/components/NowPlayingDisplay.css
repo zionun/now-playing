@@ -112,7 +112,7 @@
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
 }
 
-/* Ottimizzazioni per display piccoli/quadrati come HyperPixel 4.0 Square */
+/* Tuning for small/square displays such as the HyperPixel 4.0 Square */
 @media (max-width: 480px), (max-height: 480px), (aspect-ratio: 1/1) {
   .main-content {
     justify-content: flex-end;

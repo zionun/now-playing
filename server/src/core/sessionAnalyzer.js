@@ -1,5 +1,5 @@
-// 📋 ANALISI DELLE SESSIONI - Funzioni pure: ricevono la risposta di
-// /status/sessions (già filtrata) e restituiscono dati, senza stato globale.
+// 📋 SESSION ANALYSIS - Pure functions: they take the (already filtered)
+// /status/sessions response and return data, with no global state.
 import { isLanSession } from '../services/sessionFilters.js'
 
 const toArray = value => (Array.isArray(value) ? value : value ? [value] : [])
@@ -9,7 +9,7 @@ const isTrack = item =>
 
 const toInt = value => (value ? parseInt(value, 10) || 0 : 0)
 
-// Solo musica, un elemento per player, nel formato usato dal resto dell'app
+// Music only, one entry per player, in the format used by the rest of the app
 export function extractMusicPlayers(sessions) {
   const players = []
   const seen = new Set()
@@ -31,8 +31,8 @@ export function extractMusicPlayers(sessions) {
       userId: item.User?.id !== undefined ? String(item.User.id) : null,
       userTitle: item.User?.title || null,
       trackInfo: {
-        title: item.title || 'Titolo sconosciuto',
-        artist: item.grandparentTitle || item.originalTitle || 'Artista sconosciuto',
+        title: item.title || 'Unknown title',
+        artist: item.grandparentTitle || item.originalTitle || 'Unknown artist',
         album: item.parentTitle || '',
         duration: toInt(item.duration),
         viewOffset: toInt(item.viewOffset),
@@ -45,11 +45,11 @@ export function extractMusicPlayers(sessions) {
   return players
 }
 
-// Sceglie il player da mostrare, in ordine di priorità:
-// 1. quello scelto a mano dall'utente (se sta suonando)
-// 2. quello che suona la traccia già mostrata (continuità se passa a un altro player)
-// 3. un player controllabile tra quelli che suonano, altrimenti il primo che suona
-// 4. se nessuno suona, il primo (es. in pausa)
+// Chooses the player to show, in order of priority:
+// 1. the one picked by the user (if it is playing)
+// 2. the one playing the track already shown (continuity when it moves to another player)
+// 3. a controllable player among those playing, otherwise the first one playing
+// 4. if none is playing, the first one (e.g. paused)
 export function choosePrimary(
   players,
   { manualSelection = null, displayedRatingKey = null, isControllable = () => false } = {}
@@ -69,8 +69,8 @@ export function choosePrimary(
   return players[0]
 }
 
-// I player dello stesso utente del player principale: il selettore del
-// touch overlay permette di passare dall'uno all'altro.
+// The players of the same user as the primary player: the touch overlay's
+// picker lets you switch between them.
 export function playersOfSameUser(players, primary) {
   if (!primary) return []
   const key = p => p.userId ?? p.userTitle ?? 'unknown-user'

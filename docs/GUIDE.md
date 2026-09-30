@@ -231,6 +231,7 @@ The file is outside the repository, so updates never touch it and secrets never 
 | Manual Plex server (address, port, token) | *Settings → Advanced* | — |
 | Last.fm username and API key | Setup, then *Settings → Last.fm* | — |
 | Filters: home network only / users / players | *Settings → Filters* | all |
+| Language (automatic, English, Italian) | *Settings → Screen* | automatic |
 | On-screen controls duration | *Settings → Screen* | 4 s |
 | Last.fm data when idle | *Settings → Screen* | on |
 
@@ -398,6 +399,14 @@ now-playing/
 ├── kiosk.sh / start-kiosk.sh  Kiosk mode
 └── ecosystem.config.cjs       PM2 configuration
 ```
+
+### Languages
+
+Code, comments and logs are in English. The interface text lives in `client/src/i18n/messages.js` (English and Italian); components get it with `const t = useT()` and `t('section.key', { name: value })`. The language comes from *Settings → Screen*: *Automatic* follows each device's own language (the kiosk and the phone can differ; on the kiosk it is Chromium's `--lang` in `kiosk.sh`).
+
+API errors carry a stable `code` (and `params`), created with `AppError` / `sendError` in `server/src/lib/errors.js`; the interface translates them with `errorText(t, error)` from `errors.<code>`.
+
+To add a language, copy the `en` block in `messages.js` under a new language code and translate it: a test checks that every language has exactly the same keys.
 
 ### Releasing
 

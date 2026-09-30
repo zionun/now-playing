@@ -1,3 +1,3 @@
 #!/bin/bash
-# Avvia X senza cursore e lancia kiosk.sh
+# Starts X without a cursor and runs kiosk.sh
 xinit /opt/now-playing/kiosk.sh -- :0 -nocursor

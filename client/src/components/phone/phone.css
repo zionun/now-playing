@@ -1,6 +1,6 @@
 .phone-page {
-  /* #root ha altezza fissa e overflow nascosto (modalità kiosk): la
-     pagina del telefono deve scorrere dentro il proprio contenitore */
+  /* #root has a fixed height and hidden overflow (kiosk mode): the phone
+     page must scroll inside its own container */
   height: 100vh;
   height: 100dvh;
   overflow-y: auto;
@@ -62,8 +62,9 @@
 .phone-block input[type='text'],
 .phone-block input[type='password'],
 .phone-block input[type='number'],
-.phone-block input:not([type]) {
-  font-size: 1.05rem; /* ≥16px: evita lo zoom automatico su iOS */
+.phone-block input:not([type]),
+.phone-block select {
+  font-size: 1.05rem; /* ≥16px: avoids automatic zoom on iOS */
   padding: 0.75rem;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);

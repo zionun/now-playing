@@ -5,10 +5,12 @@ import PasswordGate, { NewPasswordForm } from './phone/PasswordGate'
 import PlexConnect, { hasPendingPlexPin } from './phone/PlexConnect'
 import LastfmForm from './phone/LastfmForm'
 import FiltersForm from './phone/FiltersForm'
+import { errorText, useT, SUPPORTED_LANGUAGES, LANGUAGE_NAMES } from '../i18n'
 
-// Configurazione generale, aperta dal telefono con il QR che il kiosk mostra
-// toccando l'icona ⚙︎. Richiede sempre la password del dispositivo.
+// General settings, opened on the phone from the QR code the kiosk shows when
+// the ⚙︎ icon is tapped. Always asks for the device password.
 const ConfigurationPanel = () => {
+  const t = useT()
   const [state, setState] = useState(null)
   const [config, setConfig] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
@@ -17,20 +19,24 @@ const ConfigurationPanel = () => {
   const [changingPlex, setChangingPlex] = useState(() => hasPendingPlexPin('connect'))
   const [prefs, setPrefs] = useState(null)
   const [advanced, setAdvanced] = useState({ url: '', port: 32400, token: '' })
-  const [prefsMessage, setPrefsMessage] = useState('')
-  const [advancedMessage, setAdvancedMessage] = useState('')
-  const [passwordMessage, setPasswordMessage] = useState('')
+  // Messages are kept as { key, params } so they follow a language change
+  const [prefsMessage, setPrefsMessage] = useState(null)
+  const [advancedMessage, setAdvancedMessage] = useState(null)
+  const [passwordMessage, setPasswordMessage] = useState(null)
   const [resetPassword, setResetPassword] = useState('')
   const [resetError, setResetError] = useState('')
 
   useSessionExpired(useCallback(() => setAuthenticated(false), []))
 
-  const handleError = useCallback(err => {
-    if (err instanceof SessionExpiredError) {
-      setAuthenticated(false)
-    }
-    setError(err.message)
-  }, [])
+  const handleError = useCallback(
+    err => {
+      if (err instanceof SessionExpiredError) {
+        setAuthenticated(false)
+      }
+      setError(errorText(t, err))
+    },
+    [t]
+  )
 
   const load = useCallback(async () => {
     try {
@@ -39,7 +45,8 @@ const ConfigurationPanel = () => {
       setConfig(configData)
       setPrefs({
         showControlsTimeout: configData.display?.showControlsTimeout || 4000,
-        enableLastfmIdle: configData.display?.enableLastfmIdle !== false
+        enableLastfmIdle: configData.display?.enableLastfmIdle !== false,
+        language: configData.display?.language || 'auto'
       })
       setAdvanced({ url: configData.plex.url || '', port: configData.plex.port || 32400, token: '' })
       setAuthenticated(true)
@@ -55,7 +62,7 @@ const ConfigurationPanel = () => {
         const stateData = await api('/api/auth/state')
         setState(stateData)
         if (!stateData.hasPassword) {
-          // Mai configurato: si passa dalla configurazione iniziale
+          // Never set up: go through the initial setup
           window.location.replace('/setup')
           return
         }
@@ -69,20 +76,10 @@ const ConfigurationPanel = () => {
 
   const savePrefs = async e => {
     e.preventDefault()
-    setPrefsMessage('')
+    setPrefsMessage(null)
     try {
-      await api('/api/config', {
-        method: 'POST',
-        body: {
-          config: {
-            display: {
-              showControlsTimeout: prefs.showControlsTimeout,
-              enableLastfmIdle: prefs.enableLastfmIdle
-            }
-          }
-        }
-      })
-      setPrefsMessage('Preferenze salvate')
+      await api('/api/config', { method: 'POST', body: { config: { display: prefs } } })
+      setPrefsMessage({ key: 'settings.prefsSaved' })
     } catch (err) {
       handleError(err)
     }
@@ -90,13 +87,13 @@ const ConfigurationPanel = () => {
 
   const saveAdvanced = async e => {
     e.preventDefault()
-    setAdvancedMessage('')
+    setAdvancedMessage(null)
     try {
       await api('/api/config', {
         method: 'POST',
         body: { config: { plex: { url: advanced.url, port: advanced.port, token: advanced.token } } }
       })
-      setAdvancedMessage('Impostazioni Plex salvate')
+      setAdvancedMessage({ key: 'settings.plexSaved' })
       await load()
     } catch (err) {
       handleError(err)
@@ -104,23 +101,23 @@ const ConfigurationPanel = () => {
   }
 
   const testPlexConnection = async () => {
-    setAdvancedMessage('')
+    setAdvancedMessage(null)
     try {
       const result = await api('/api/plex/test-connection', {
         method: 'POST',
         body: advanced.token ? advanced : { url: advanced.url, port: advanced.port }
       })
-      setAdvancedMessage(`Connessione riuscita: ${result.server}`)
+      setAdvancedMessage({ key: 'settings.testOk', params: { server: result.server } })
     } catch (err) {
-      setAdvancedMessage(`Connessione non riuscita: ${err.message}`)
+      setAdvancedMessage({ key: 'settings.testFailed', params: { error: errorText(t, err) } })
     }
   }
 
   const disconnectPlex = async () => {
-    if (!window.confirm('Disconnettere Plex? Lo schermo tornerà alla configurazione iniziale.')) return
+    if (!window.confirm(t('settings.disconnectConfirm'))) return
     try {
       await api('/api/auth/plex/disconnect', { method: 'POST' })
-      // Senza Plex il dispositivo non è utilizzabile: si riparte dal setup
+      // Without Plex the device can't be used: start over from the setup
       window.location.href = '/setup'
     } catch (err) {
       handleError(err)
@@ -130,25 +127,20 @@ const ConfigurationPanel = () => {
   const changePassword = async password => {
     const result = await api('/api/auth/password/change', { method: 'POST', body: { password } })
     session.set(result.session)
-    setPasswordMessage('Password aggiornata')
+    setPasswordMessage({ key: 'settings.passwordUpdated' })
   }
 
   const resetDevice = async e => {
     e.preventDefault()
     setResetError('')
-    if (
-      !window.confirm(
-        "Ripristinare il dispositivo? Verranno cancellate tutta la configurazione, la password e il collegamento all'account Plex."
-      )
-    )
-      return
+    if (!window.confirm(t('settings.resetConfirm'))) return
     try {
       await api('/api/auth/reset-device', { method: 'POST', body: { password: resetPassword } })
       session.clear()
       window.location.href = '/setup'
     } catch (err) {
       if (err instanceof SessionExpiredError) handleError(err)
-      else setResetError(err.message)
+      else setResetError(errorText(t, err))
     }
   }
 
@@ -159,7 +151,7 @@ const ConfigurationPanel = () => {
 
   if (!state) {
     return (
-      <PhonePage title="Configurazione">
+      <PhonePage title={t('settings.title')}>
         {error ? (
           <p className="phone-error">{error}</p>
         ) : (
@@ -173,23 +165,25 @@ const ConfigurationPanel = () => {
 
   if (!authenticated || !config || !prefs) {
     return (
-      <PhonePage title="Configurazione">
+      <PhonePage title={t('settings.title')}>
         <PasswordGate canResetPassword={state.canResetPassword} onAuthenticated={load} />
       </PhonePage>
     )
   }
 
   return (
-    <PhonePage title="Configurazione">
+    <PhonePage title={t('settings.title')}>
       {error && <p className="phone-error">{error}</p>}
 
       {/* Plex */}
       <section className="phone-section">
         <h2>Plex</h2>
         {state.plexConnected ? (
-          <p className="phone-status">Collegato a {config.plex.serverName || config.plex.url}</p>
+          <p className="phone-status">
+            {t('settings.connectedTo', { server: config.plex.serverName || config.plex.url })}
+          </p>
         ) : (
-          <p className="phone-status off">Non collegato</p>
+          <p className="phone-status off">{t('settings.notConnected')}</p>
         )}
 
         {changingPlex ? (
@@ -204,11 +198,11 @@ const ConfigurationPanel = () => {
         ) : (
           <div className="phone-block">
             <button className="phone-btn phone-btn-secondary" onClick={() => setChangingPlex(true)}>
-              {state.plexConnected ? 'Ricollega Plex o cambia server' : 'Accedi con Plex'}
+              {state.plexConnected ? t('settings.reconnectOrChange') : t('common.loginWithPlex')}
             </button>
             {state.plexConnected && (
               <button className="phone-btn phone-btn-danger" onClick={disconnectPlex}>
-                Disconnetti Plex
+                {t('settings.disconnect')}
               </button>
             )}
           </div>
@@ -219,29 +213,42 @@ const ConfigurationPanel = () => {
       <section className="phone-section">
         <h2>Last.fm</h2>
         {state.lastfmConfigured ? (
-          <p className="phone-status">Collegato come {state.lastfmUsername}</p>
+          <p className="phone-status">{t('lastfm.connectedAs', { username: state.lastfmUsername })}</p>
         ) : (
-          <p className="phone-status off">Non collegato</p>
+          <p className="phone-status off">{t('settings.notConnected')}</p>
         )}
         <LastfmForm
           initialUsername={state.lastfmUsername}
           hasApiKey={state.hasLastfmApiKey}
           onSaved={() => load()}
         />
-        <p className="phone-small">Per scollegare Last.fm svuota lo username e salva.</p>
+        <p className="phone-small">{t('settings.lastfmUnlinkHint')}</p>
       </section>
 
-      {/* Filtri */}
+      {/* Filters */}
       <section className="phone-section">
-        <h2>Filtri</h2>
+        <h2>{t('settings.filtersTitle')}</h2>
         <FiltersForm initialFilters={config.filters} onError={handleError} />
       </section>
 
-      {/* Preferenze */}
+      {/* Screen */}
       <section className="phone-section">
-        <h2>Schermo</h2>
+        <h2>{t('settings.screenTitle')}</h2>
         <form className="phone-block" onSubmit={savePrefs}>
-          <label htmlFor="controls-timeout">Durata dei controlli a schermo (secondi)</label>
+          <label htmlFor="language">{t('settings.language')}</label>
+          <select
+            id="language"
+            value={prefs.language}
+            onChange={e => setPrefs({ ...prefs, language: e.target.value })}
+          >
+            <option value="auto">{t('settings.languageAuto')}</option>
+            {SUPPORTED_LANGUAGES.map(language => (
+              <option key={language} value={language}>
+                {LANGUAGE_NAMES[language]}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="controls-timeout">{t('settings.controlsDuration')}</label>
           <input
             id="controls-timeout"
             type="number"
@@ -259,29 +266,29 @@ const ConfigurationPanel = () => {
               checked={prefs.enableLastfmIdle}
               onChange={e => setPrefs({ ...prefs, enableLastfmIdle: e.target.checked })}
             />
-            Mostra i dati Last.fm quando non c'è musica
+            {t('settings.showLastfm')}
           </label>
-          {prefsMessage && <p className="phone-success">{prefsMessage}</p>}
+          {prefsMessage && <p className="phone-success">{t(prefsMessage.key, prefsMessage.params)}</p>}
           <button type="submit" className="phone-btn phone-btn-primary">
-            Salva preferenze
+            {t('settings.savePrefs')}
           </button>
         </form>
       </section>
 
       {/* Password */}
       <section className="phone-section">
-        <h2>Password del dispositivo</h2>
-        {passwordMessage && <p className="phone-success">{passwordMessage}</p>}
-        <NewPasswordForm submitLabel="Cambia password" onSubmit={changePassword} />
+        <h2>{t('settings.passwordTitle')}</h2>
+        {passwordMessage && <p className="phone-success">{t(passwordMessage.key, passwordMessage.params)}</p>}
+        <NewPasswordForm submitLabel={t('settings.changePassword')} onSubmit={changePassword} />
       </section>
 
-      {/* Avanzate */}
+      {/* Advanced */}
       <section className="phone-section">
         <details>
-          <summary>Avanzate: server Plex manuale</summary>
+          <summary>{t('settings.advancedSummary')}</summary>
           <form className="phone-block" onSubmit={saveAdvanced}>
-            <p className="phone-small">Normalmente non serve: l'accesso con Plex imposta tutto da solo.</p>
-            <label htmlFor="plex-url">Indirizzo del server</label>
+            <p className="phone-small">{t('settings.advancedHint')}</p>
+            <label htmlFor="plex-url">{t('settings.serverAddress')}</label>
             <input
               id="plex-url"
               value={advanced.url}
@@ -289,7 +296,7 @@ const ConfigurationPanel = () => {
               placeholder="192.168.1.100"
               autoCapitalize="none"
             />
-            <label htmlFor="plex-port">Porta</label>
+            <label htmlFor="plex-port">{t('settings.port')}</label>
             <input
               id="plex-port"
               type="number"
@@ -298,35 +305,33 @@ const ConfigurationPanel = () => {
               value={advanced.port}
               onChange={e => setAdvanced({ ...advanced, port: parseInt(e.target.value, 10) || '' })}
             />
-            <label htmlFor="plex-token">Token Plex</label>
+            <label htmlFor="plex-token">{t('settings.token')}</label>
             <input
               id="plex-token"
               type="password"
               value={advanced.token}
               onChange={e => setAdvanced({ ...advanced, token: e.target.value })}
-              placeholder={config.plex.token ? 'Lascia vuoto per non cambiarlo' : ''}
+              placeholder={config.plex.token ? t('settings.tokenKeep') : ''}
             />
-            {advancedMessage && <p className="phone-hint">{advancedMessage}</p>}
+            {advancedMessage && (
+              <p className="phone-hint">{t(advancedMessage.key, advancedMessage.params)}</p>
+            )}
             <button type="button" className="phone-btn phone-btn-secondary" onClick={testPlexConnection}>
-              Testa connessione
+              {t('settings.testConnection')}
             </button>
             <button type="submit" className="phone-btn phone-btn-primary">
-              Salva
+              {t('common.save')}
             </button>
           </form>
         </details>
       </section>
 
-      {/* Ripristino */}
+      {/* Reset */}
       <section className="phone-section">
-        <h2>Ripristina dispositivo</h2>
+        <h2>{t('settings.resetTitle')}</h2>
         <form className="phone-block" onSubmit={resetDevice}>
-          <p className="phone-small">
-            Cancella tutta la configurazione: password, collegamento a Plex (anche l'account associato),
-            Last.fm e preferenze. Lo schermo tornerà al QR della configurazione iniziale. Serve per esempio
-            per usare un altro account Plex.
-          </p>
-          <label htmlFor="reset-password">Conferma con la password</label>
+          <p className="phone-small">{t('settings.resetDescription')}</p>
+          <label htmlFor="reset-password">{t('settings.resetConfirmLabel')}</label>
           <input
             id="reset-password"
             type="password"
@@ -337,13 +342,13 @@ const ConfigurationPanel = () => {
           />
           {resetError && <p className="phone-error">{resetError}</p>}
           <button type="submit" className="phone-btn phone-btn-danger">
-            Ripristina dispositivo
+            {t('settings.resetTitle')}
           </button>
         </form>
       </section>
 
       <button className="phone-link" onClick={logout}>
-        Esci
+        {t('settings.logout')}
       </button>
     </PhonePage>
   )

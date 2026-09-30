@@ -1,8 +1,8 @@
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-// bcryptjs: JavaScript puro (niente compilazione sul Raspberry), compatibile
-// con gli hash creati in precedenza da bcrypt
+// bcryptjs: pure JavaScript (nothing to compile on the Raspberry Pi) and
+// compatible with the hashes created earlier by bcrypt
 import bcrypt from 'bcryptjs'
 import { fileURLToPath } from 'url'
 import { DEFAULT_FILTERS, normalizeFilters } from './sessionFilters.js'
@@ -12,17 +12,17 @@ const log = createLogger('config')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// 10 round: sicuro e verificabile in meno di un secondo anche su un Pi Zero 2
+// 10 rounds: safe, and checked in under a second even on a Pi Zero 2
 const BCRYPT_ROUNDS = 10
 
-// Vecchia posizione, dentro il repository: viene spostata al primo avvio
+// Old location, inside the repository: moved away at the first start
 export const LEGACY_CONFIG_PATH = path.join(__dirname, '../config/app.json')
 
-// 📋 DOVE STA LA CONFIGURAZIONE - Fuori dal repository, così gli
-// aggiornamenti (git) non la toccano e i segreti non finiscono mai in git:
-// - NOW_PLAYING_CONFIG, se impostata
-// - /var/lib/now-playing/config.json se il server gira come root (Raspberry)
-// - ~/.config/now-playing/config.json altrimenti (sviluppo)
+// 📋 WHERE THE CONFIGURATION LIVES - Outside the repository, so updates
+// (git) never touch it and secrets never end up in git:
+// - NOW_PLAYING_CONFIG, when set
+// - /var/lib/now-playing/config.json when the server runs as root (Raspberry)
+// - ~/.config/now-playing/config.json otherwise (development)
 export function resolveConfigPath(env = process.env) {
   if (env.NOW_PLAYING_CONFIG) return path.resolve(env.NOW_PLAYING_CONFIG)
   if (typeof process.getuid === 'function' && process.getuid() === 0) {
@@ -54,7 +54,7 @@ export class ConfigService {
       configData = await fs.readFile(this.configPath, 'utf8')
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
-      log.info(`Nessuna configurazione in ${this.configPath}: creo quella iniziale`)
+      log.info(`No configuration in ${this.configPath}: creating the initial one`)
       this.config = this.getDefaultConfig()
       await this.saveConfig()
       return
@@ -63,23 +63,23 @@ export class ConfigService {
     try {
       this.config = this.migrate(JSON.parse(configData))
     } catch (error) {
-      // File illeggibile: lo si mette da parte invece di sovrascriverlo, così
-      // password e collegamenti si possono ancora recuperare a mano
+      // Unreadable file: set it aside instead of overwriting it, so the
+      // password and connections can still be recovered by hand
       const brokenPath = `${this.configPath}.broken-${Date.now()}`
       await fs.rename(this.configPath, brokenPath)
-      log.error(`Configurazione non valida, spostata in ${brokenPath}: riparto da quella iniziale`)
+      log.error(`Invalid configuration, moved to ${brokenPath}: starting from the initial one`)
       this.config = this.getDefaultConfig()
       await this.saveConfig()
       return
     }
 
-    // I permessi potrebbero essere stati allargati a mano
+    // Permissions might have been loosened by hand
     await fs.chmod(this.configPath, 0o600).catch(() => {})
-    log.info(`Configurazione caricata da ${this.configPath}`)
+    log.info(`Configuration loaded from ${this.configPath}`)
   }
 
-  // Configurazione nella vecchia posizione (dentro il repository) e non
-  // ancora in quella nuova: la si sposta, una volta sola.
+  // Configuration in the old location (inside the repository) and not yet in
+  // the new one: move it, once.
   async migrateLegacyFile() {
     if (!this.legacyPath || this.legacyPath === this.configPath) return
     if (!(await exists(this.legacyPath)) || (await exists(this.configPath))) return
@@ -87,12 +87,12 @@ export class ConfigService {
     const data = await fs.readFile(this.legacyPath, 'utf8')
     await this.writeAtomically(data)
     await fs.unlink(this.legacyPath)
-    log.info(`Configurazione spostata da ${this.legacyPath} a ${this.configPath}`)
+    log.info(`Configuration moved from ${this.legacyPath} to ${this.configPath}`)
   }
 
-  // Scrittura atomica (file temporaneo + rename): un'interruzione di corrente
-  // durante il salvataggio non lascia mai un file a metà. Permessi 600: la
-  // configurazione contiene token e password.
+  // Atomic write (temporary file + rename): a power cut while saving never
+  // leaves a half-written file. Permissions 600: the configuration holds
+  // tokens and the password hash.
   async writeAtomically(data) {
     const dir = path.dirname(this.configPath)
     await fs.mkdir(dir, { recursive: true, mode: 0o700 })
@@ -101,14 +101,16 @@ export class ConfigService {
     await fs.rename(tmpPath, this.configPath)
   }
 
-  // Configurazioni salvate da versioni precedenti: plex.preferredUser (mai
-  // usato) è sostituito da filters.users, e filters va sempre inizializzato.
+  // Configurations saved by older versions: plex.preferredUser (never used)
+  // is replaced by filters.users, filters is always initialized and the
+  // display language defaults to "auto".
   migrate(config) {
     if (config.plex && 'preferredUser' in config.plex) {
       const { preferredUser, ...plex } = config.plex
       config.plex = plex
     }
     config.filters = normalizeFilters(config.filters)
+    config.display = { language: 'auto', ...config.display }
     return config
   }
 
@@ -118,9 +120,9 @@ export class ConfigService {
         url: '',
         port: 32400,
         token: '',
-        clientIdentifier: '' // identificativo stabile per il login PIN/QR
+        clientIdentifier: '' // stable identifier for the Plex PIN login
       },
-      // Filtri sulle sessioni: liste vuote = nessuna restrizione
+      // Session filters: empty lists = no restriction
       filters: { ...DEFAULT_FILTERS },
       lastfm: {
         username: '',
@@ -131,7 +133,8 @@ export class ConfigService {
       display: {
         showControlsTimeout: 4000, // 4 seconds
         idleTimeout: 300000, // 5 minutes
-        enableLastfmIdle: true
+        enableLastfmIdle: true,
+        language: 'auto' // 'auto' (device language), 'en' or 'it'
       },
       users: {
         configPassword: null // hashed password for config access
@@ -170,7 +173,7 @@ export class ConfigService {
         ...this.stripEmptySecrets(updates.lastfm, ['apiKey', 'apiSecret', 'sessionKey'])
       },
       display: { ...this.config.display, ...updates.display },
-      // Le liste di utenti/player sostituiscono quelle precedenti
+      // User/player lists replace the previous ones
       filters: updates.filters
         ? normalizeFilters({ ...this.config.filters, ...updates.filters })
         : this.config.filters,
@@ -193,17 +196,17 @@ export class ConfigService {
     return cleaned
   }
 
-  // Usati dal flusso di login Plex (PIN/QR): scrivono direttamente il campo,
-  // a differenza di updateConfig() non trattano una stringa vuota come "non
-  // modificare" perché qui serve poter azzerare davvero il token.
+  // Used by the Plex login flow: they write the field directly; unlike
+  // updateConfig() an empty string is not "unchanged", because here the token
+  // must really be clearable.
   async setPlexClientIdentifier(clientIdentifier) {
     this.config.plex = { ...this.config.plex, clientIdentifier }
     await this.saveConfig()
   }
 
-  // accountId/serverName/machineIdentifier: l'account Plex che ha
-  // configurato il dispositivo (serve per reimpostare la password) e il
-  // server scelto (mostrato nella configurazione).
+  // accountId/serverName/machineIdentifier: the Plex account that set up the
+  // device (needed to reset the password) and the chosen server (shown in
+  // the settings).
   async setPlexAuth({ url, port, token, accountId, serverName, machineIdentifier }) {
     this.config.plex = {
       ...this.config.plex,
@@ -222,8 +225,8 @@ export class ConfigService {
     await this.saveConfig()
   }
 
-  // Ripristino di fabbrica: si torna alla configurazione iniziale, compresi
-  // password e legame con l'account Plex.
+  // Factory reset: back to the initial configuration, password and Plex
+  // account binding included.
   async resetToDefaults() {
     this.config = this.getDefaultConfig()
     await this.saveConfig()

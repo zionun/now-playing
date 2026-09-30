@@ -12,15 +12,15 @@ import { createLogger } from '../lib/logger.js'
 
 const log = createLogger('now-playing')
 
-const FALLBACK_POLL_MS = 10000 // polling solo quando il WebSocket Plex è giù
-const EVENT_REFRESH_DELAY_MS = 400 // Plex aggiorna le sessioni poco dopo l'evento
+const FALLBACK_POLL_MS = 10000 // polling only while the Plex WebSocket is down
+const EVENT_REFRESH_DELAY_MS = 400 // Plex updates the sessions shortly after the event
 const COMMAND_REFRESH_DELAY_MS = 1000
 const HEALTH_CACHE_MS = 30000
 
-// 📋 SERVIZIO PRINCIPALE
-// Coordina Plex (HTTP + eventi), filtri, macchina a stati e Last.fm, ed è
-// l'unico punto con timer e stato mutabile. Emette:
-//   'nowPlaying' (dati per il kiosk), 'authRequired', 'configUpdated', 'health'
+// 📋 MAIN SERVICE
+// Coordinates Plex (HTTP + events), filters, the state machine and Last.fm,
+// and is the only place with timers and mutable state. Emits:
+//   'nowPlaying' (data for the kiosk), 'authRequired', 'configUpdated', 'health'
 export class NowPlayingService extends EventEmitter {
   constructor({ configService, plexClient, eventStream, directory, playback, lastfm, plexAuthService }) {
     super()
@@ -61,7 +61,7 @@ export class NowPlayingService extends EventEmitter {
     this.eventStream.on('playing', notifications => this.onPlexNotifications(notifications))
   }
 
-  // 📋 CONFIGURAZIONE
+  // 📋 CONFIGURATION
 
   isConfigured() {
     return this.configService.hasConfigPassword() && this.plexClient.isConfigured()
@@ -79,7 +79,7 @@ export class NowPlayingService extends EventEmitter {
     clearTimeout(this.eventRefreshTimer)
   }
 
-  // Chiamato dopo ogni salvataggio della configurazione
+  // Called after every configuration save
   async reloadConfig() {
     await this.configService.loadConfig()
     this.lastfm.clearCache()
@@ -95,13 +95,13 @@ export class NowPlayingService extends EventEmitter {
     const hasPassword = this.configService.hasConfigPassword()
     const plexConnected = this.plexClient.isConfigured()
 
-    // setup: manca la password; login: manca (o non vale più) il collegamento a Plex
+    // setup: no password; login: no (or no longer valid) Plex connection
     this.dispatch({ type: 'CONFIG', configured: hasPassword, tokenValid: plexConnected })
 
     if (hasPassword && plexConnected) {
       this.eventStream.restart()
       this.directory.start()
-      // Finché il WebSocket non è connesso si va in polling
+      // Poll until the WebSocket is connected
       if (!this.eventStream.connected) this.startPolling()
       this.refresh()
     } else {
@@ -113,10 +113,10 @@ export class NowPlayingService extends EventEmitter {
     }
   }
 
-  // 📋 AGGIORNAMENTO DELLE SESSIONI
+  // 📋 SESSION UPDATES
 
-  // Le richieste ravvicinate si accodano: al massimo una lettura in corso e
-  // una in attesa, mai letture sovrapposte.
+  // Close requests are queued: at most one read in progress and one waiting,
+  // never overlapping reads.
   refresh() {
     if (this.refreshInFlight) {
       this.refreshQueued = true
@@ -144,12 +144,12 @@ export class NowPlayingService extends EventEmitter {
         return
       }
       this.plexStatus = { ...this.plexStatus, reachable: false, lastError: error.message }
-      log.warn('Sessioni Plex non disponibili:', error.message)
+      log.warn('Plex sessions not available:', error.message)
       this.publishHealth()
       return
     }
 
-    // I filtri si applicano qui, prima di ogni altra elaborazione
+    // Filters are applied here, before anything else
     this.seen.record(sessions)
     const players = extractMusicPlayers(filterSessions(sessions, this.filters))
     this.allowedMachineIds = new Set(players.map(p => p.machineIdentifier))
@@ -166,11 +166,11 @@ export class NowPlayingService extends EventEmitter {
   }
 
   onPlexNotifications(notifications) {
-    // Notifiche solo di player esclusi dai filtri: niente da aggiornare
+    // Notifications only from filtered-out players: nothing to update
     if (hasActiveFilters(this.filters)) {
       const relevant = notifications.some(n => this.allowedMachineIds.has(n.clientIdentifier))
-      // Un player ammesso che inizia ora non è ancora noto: si rilegge comunque
-      // se la notifica è un nuovo "playing"
+      // An allowed player that just started is not known yet: read again anyway
+      // when the notification is a new "playing"
       if (!relevant && !notifications.some(n => n.state === 'playing')) return
     }
     this.scheduleRefresh(EVENT_REFRESH_DELAY_MS)
@@ -178,7 +178,7 @@ export class NowPlayingService extends EventEmitter {
 
   startPolling() {
     if (this.pollTimer) return
-    log.info(`Polling ogni ${FALLBACK_POLL_MS / 1000}s finché il WebSocket Plex non torna disponibile`)
+    log.info(`Polling every ${FALLBACK_POLL_MS / 1000}s until the Plex WebSocket is back`)
     this.pollTimer = setInterval(() => this.refresh(), FALLBACK_POLL_MS)
   }
 
@@ -186,11 +186,11 @@ export class NowPlayingService extends EventEmitter {
     if (!this.pollTimer) return
     clearInterval(this.pollTimer)
     this.pollTimer = null
-    log.info('WebSocket Plex attivo: polling sospeso')
+    log.info('Plex WebSocket active: polling stopped')
   }
 
   async handleUnauthorized() {
-    log.warn('Token Plex non più valido (401): serve un nuovo login')
+    log.warn('Plex token no longer valid (401): a new login is needed')
     await this.configService.clearPlexToken()
     this.eventStream.stop()
     this.stopPolling()
@@ -199,13 +199,13 @@ export class NowPlayingService extends EventEmitter {
     this.publishHealth()
   }
 
-  // 📋 MACCHINA A STATI E TIMER
+  // 📋 STATE MACHINE AND TIMERS
 
   dispatch(event) {
     const previous = this.state.screen
     this.state = reduce(this.state, { now: Date.now(), ...event })
     if (previous !== this.state.screen) {
-      log.info(`Schermata: ${previous} → ${this.state.screen}`)
+      log.info(`Screen: ${previous} → ${this.state.screen}`)
       this.onScreenChange(previous, this.state.screen)
     }
   }
@@ -218,7 +218,7 @@ export class NowPlayingService extends EventEmitter {
         this.dispatch({ type: 'PAUSE_EXPIRED' })
         this.broadcast()
       }, PAUSE_TO_IDLE_MS)
-      // Il kiosk mostra il conto alla rovescia
+      // The kiosk shows the countdown
       this.countdownTimer = setInterval(() => this.broadcast(), 1000)
     } else if (previous === 'paused') {
       this.clearPauseTimers()
@@ -247,7 +247,7 @@ export class NowPlayingService extends EventEmitter {
     return this.lastPayload || this.broadcast()
   }
 
-  // 📋 COMANDI DAL KIOSK
+  // 📋 COMMANDS FROM THE KIOSK
 
   targetPlayer(machineIdentifier) {
     if (machineIdentifier) return machineIdentifier
@@ -276,7 +276,7 @@ export class NowPlayingService extends EventEmitter {
   async resume() {
     const player =
       this.state.pause?.player || this.state.resumeFrom || this.state.players.find(p => p.state === 'paused')
-    if (!player) return { success: false, error: 'Nessuna traccia in pausa trovata' }
+    if (!player) return { success: false, error: 'No paused track found', code: 'no_paused_track' }
     return this.mediaControl('play', {
       machineIdentifier: player.machineIdentifier,
       sessionKey: player.sessionKey
@@ -288,7 +288,7 @@ export class NowPlayingService extends EventEmitter {
     return this.broadcast()
   }
 
-  // 📋 STATO DI SALUTE (/api/health e indicatore a schermo)
+  // 📋 HEALTH (/api/health and the on-screen indicator)
 
   async health({ fresh = false } = {}) {
     if (!fresh && this.healthCache && Date.now() - this.healthCache.at < HEALTH_CACHE_MS) {
@@ -296,8 +296,8 @@ export class NowPlayingService extends EventEmitter {
     }
     const configured = this.isConfigured()
 
-    // Con il WebSocket attivo le sessioni si leggono solo sugli eventi: per
-    // sapere se Plex risponde si fa una richiesta leggera (/identity)
+    // With the WebSocket active, sessions are only read on events: a light
+    // request (/identity) tells whether Plex answers
     if (
       configured &&
       (!this.plexStatus.lastOkAt || Date.now() - this.plexStatus.lastOkAt > HEALTH_CACHE_MS)
@@ -353,7 +353,7 @@ export class NowPlayingService extends EventEmitter {
     return value
   }
 
-  // Invia lo stato di salute al kiosk solo quando cambia qualcosa di visibile
+  // Sends the health to the kiosk only when something visible changes
   async publishHealth() {
     this.healthCache = null
     const health = await this.health()
@@ -378,7 +378,7 @@ export class NowPlayingService extends EventEmitter {
     return this.lastHealthKey ? JSON.parse(this.lastHealthKey) : null
   }
 
-  // 📋 DATI PER LA CONFIGURAZIONE (filtri)
+  // 📋 DATA FOR THE SETTINGS (filters)
 
   async filterOptions() {
     const users = new Map()
@@ -396,7 +396,7 @@ export class NowPlayingService extends EventEmitter {
       ])
       if (accounts.status === 'fulfilled') {
         for (const account of accounts.value) {
-          // L'account 0 è quello di sistema del server, non un utente reale
+          // Account 0 is the server's system account, not a real user
           if (account?.id === undefined || String(account.id) === '0' || !account.name) continue
           users.set(String(account.id), { id: String(account.id), title: account.name })
         }
@@ -415,12 +415,12 @@ export class NowPlayingService extends EventEmitter {
         local: player.local
       })
     }
-    // Gli elementi già selezionati restano in elenco anche se ora non si trovano
+    // Already selected entries stay in the list even when not found now
     for (const id of this.filters.users) {
-      if (!users.has(id)) users.set(id, { id, title: `Utente ${id} (non trovato)` })
+      if (!users.has(id)) users.set(id, { id, title: `User ${id} (not found)` })
     }
     for (const id of this.filters.players) {
-      if (!players.has(id)) addPlayer(id, { title: `Player ${id.slice(0, 8)}… (non trovato)`, product: '' })
+      if (!players.has(id)) addPlayer(id, { title: `Player ${id.slice(0, 8)}… (not found)`, product: '' })
     }
 
     const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '')

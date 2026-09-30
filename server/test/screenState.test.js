@@ -8,7 +8,7 @@ const configured = () => reduce(initialState(), { type: 'CONFIG', configured: tr
 const withSessions = (state, ...items) =>
   reduce(state, { type: 'SESSIONS', players: extractMusicPlayers(sessions(...items)) })
 
-test('CONFIG: setup senza password, login senza Plex, altrimenti idle', () => {
+test('CONFIG: setup without password, login without Plex, otherwise idle', () => {
   assert.equal(
     reduce(initialState(), { type: 'CONFIG', configured: false, tokenValid: false }).screen,
     'setup'
@@ -20,12 +20,12 @@ test('CONFIG: setup senza password, login senza Plex, altrimenti idle', () => {
   assert.equal(configured().screen, 'idle')
 })
 
-test('SESSIONS ignorate in setup/login', () => {
+test('SESSIONS ignored in setup/login', () => {
   const state = reduce(initialState(), { type: 'CONFIG', configured: true, tokenValid: false })
   assert.equal(withSessions(state, track({ machine: 'a' })).screen, 'login')
 })
 
-test('idle → playing → resume (pausa da altro dispositivo) → idle', () => {
+test('idle → playing → resume (paused from another device) → idle', () => {
   let state = withSessions(configured(), track({ machine: 'a' }))
   assert.equal(state.screen, 'playing')
   assert.equal(state.primary.machineIdentifier, 'a')
@@ -39,12 +39,12 @@ test('idle → playing → resume (pausa da altro dispositivo) → idle', () => 
   assert.equal(state.resumeFrom, null)
 })
 
-test('pausa dal kiosk: paused con conto alla rovescia, poi resume', () => {
+test('pause from the kiosk: paused with a countdown, then resume', () => {
   let state = withSessions(configured(), track({ machine: 'a' }))
   state = reduce(state, { type: 'USER_PAUSED', machineIdentifier: 'a', now: 1000 })
   assert.equal(state.screen, 'paused')
 
-  // Le sessioni (Plex dice "paused") non cambiano la schermata durante il conto alla rovescia
+  // Sessions (Plex says "paused") don't change the screen during the countdown
   state = withSessions(state, track({ machine: 'a', state: 'paused' }))
   assert.equal(state.screen, 'paused')
 
@@ -57,7 +57,7 @@ test('pausa dal kiosk: paused con conto alla rovescia, poi resume', () => {
   assert.equal(toNowPlaying(state).hasResumeOption, true)
 })
 
-test('pausa dal kiosk: se torna a suonare (anche da un altro dispositivo) → playing', () => {
+test('pause from the kiosk: playing again (even from another device) → playing', () => {
   let state = withSessions(configured(), track({ machine: 'a' }))
   state = reduce(state, { type: 'USER_PAUSED', machineIdentifier: 'a', now: 0 })
   state = withSessions(state, track({ machine: 'a' }))
@@ -65,27 +65,27 @@ test('pausa dal kiosk: se torna a suonare (anche da un altro dispositivo) → pl
   assert.equal(state.pause, null)
 })
 
-test('USER_RESUMED dalla schermata resume → playing (ottimistico)', () => {
+test('USER_RESUMED from the resume screen → playing (optimistic)', () => {
   let state = withSessions(configured(), track({ machine: 'a', state: 'paused' }))
   state = reduce(state, { type: 'USER_RESUMED' })
   assert.equal(state.screen, 'playing')
   assert.equal(toNowPlaying(state).isPlaying, true)
 })
 
-test('SELECT_PLAYER mantiene la scelta finché il player esiste', () => {
+test('SELECT_PLAYER keeps the choice while the player exists', () => {
   let state = withSessions(configured(), track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }))
   assert.equal(state.primary.machineIdentifier, 'a')
   state = reduce(state, { type: 'SELECT_PLAYER', machineIdentifier: 'b' })
   state = withSessions(state, track({ machine: 'a' }), track({ machine: 'b', ratingKey: 'r2' }))
   assert.equal(state.primary.machineIdentifier, 'b')
 
-  // Il player scelto sparisce: la scelta manuale si azzera
+  // The chosen player disappears: the manual choice is reset
   state = withSessions(state, track({ machine: 'a' }))
   assert.equal(state.manualSelection, null)
   assert.equal(state.primary.machineIdentifier, 'a')
 })
 
-test('toNowPlaying: playing con selettore dei player dello stesso utente', () => {
+test("toNowPlaying: playing with the picker of the same user's players", () => {
   const state = withSessions(
     configured(),
     track({ machine: 'a' }),
@@ -104,7 +104,7 @@ test('toNowPlaying: playing con selettore dei player dello stesso utente', () =>
   assert.match(payload.track.thumb, /^\/api\/art\?path=/)
 })
 
-test('toNowPlaying: idle usa la traccia Last.fm e non ha controlli', () => {
+test('toNowPlaying: idle uses the Last.fm track and has no controls', () => {
   const payload = toNowPlaying(configured(), { lastfmTrack: { title: 'LF', isLastFm: true } })
   assert.equal(payload.isPlaying, false)
   assert.equal(payload.hasControls, false)

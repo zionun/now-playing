@@ -1,24 +1,23 @@
 import axios from 'axios'
 import crypto from 'crypto'
+import { AppError } from '../lib/errors.js'
 
-// 📋 LOGIN PLEX CON QR CODE - Stesso flusso "PIN" usato dalle app ufficiali
-// (TV, Plexamp): si genera un PIN, l'utente lo autorizza dal telefono
-// scansionando un QR o inserendo il codice su plex.tv/link, il server
-// interroga plex.tv finché il PIN non restituisce un token.
+// 📋 PLEX LOGIN - The same "PIN" flow used by the official apps (TV,
+// Plexamp): a PIN is created, the user authorizes it on plex.tv from the
+// phone and the server polls plex.tv until the PIN returns a token.
 const PLEX_PRODUCT = 'Now Playing'
 const PLEX_TV_API = 'https://plex.tv/api/v2'
-const PIN_TTL_MS = 15 * 60 * 1000 // i PIN Plex scadono dopo ~15 minuti
+const PIN_TTL_MS = 15 * 60 * 1000 // Plex PINs expire after ~15 minutes
 
 export class PlexAuthService {
   constructor(configService) {
     this.configService = configService
-    // PIN in corso di autorizzazione: pinId -> { code, clientIdentifier, createdAt }
+    // PINs waiting for authorization: pinId -> { code, clientIdentifier, createdAt, result }
     this.pendingPins = new Map()
   }
 
-  // Un identificativo stabile per questa installazione, richiesto da Plex
-  // per associare PIN e token al "dispositivo". Generato una sola volta e
-  // salvato in config.
+  // A stable identifier for this installation, required by Plex to bind PINs
+  // and tokens to the "device". Generated once and saved in the configuration.
   async getClientIdentifier() {
     const config = this.configService.getConfig()
     if (config.plex?.clientIdentifier) {
@@ -37,8 +36,8 @@ export class PlexAuthService {
     }
   }
 
-  // Crea un PIN Plex e il link di autorizzazione da aprire sul telefono.
-  // forwardUrl: dove Plex rimanda il browser dopo l'accesso.
+  // Creates a Plex PIN and the authorization link to open on the phone.
+  // forwardUrl: where Plex sends the browser back after the login.
   async createPin(forwardUrl) {
     this.cleanupExpiredPins()
     const clientIdentifier = await this.getClientIdentifier()
@@ -70,14 +69,14 @@ export class PlexAuthService {
     }
   }
 
-  // Controlla se il PIN è stato autorizzato. Il token, l'account e i server
-  // restano solo sul server (non vengono mai inviati al browser): il client
-  // sceglie il server per machineIdentifier.
+  // Checks whether the PIN has been authorized. Token, account and servers
+  // stay on the server (never sent to the browser): the client picks the
+  // server by machineIdentifier.
   async checkPin(pinId) {
     this.cleanupExpiredPins()
     const pending = this.pendingPins.get(String(pinId))
     if (!pending) {
-      throw new Error('Accesso Plex scaduto, riprova')
+      throw new AppError('plex_login_expired', 'Plex login expired, please try again')
     }
 
     if (!pending.result) {
@@ -111,19 +110,19 @@ export class PlexAuthService {
     }
   }
 
-  // Il PIN deve essere già autorizzato: restituisce i dati completi (token
-  // compresi) e lo rimuove, perché ogni PIN si usa una volta sola.
+  // The PIN must already be authorized: returns the full data (tokens
+  // included) and removes it, since each PIN can only be used once.
   consumePin(pinId) {
     const pending = this.pendingPins.get(String(pinId))
     if (!pending?.result) {
-      throw new Error('Accesso Plex non completato o scaduto')
+      throw new AppError('plex_login_incomplete', 'Plex login not completed or expired')
     }
     this.pendingPins.delete(String(pinId))
     return pending.result
   }
 
-  // L'account Plex che ha autorizzato il token: serve per riconoscere lo
-  // stesso utente quando chiede di reimpostare la password.
+  // The Plex account that authorized the token: used to recognize the same
+  // user when they ask to reset the password.
   async getAccount(authToken) {
     const clientIdentifier = await this.getClientIdentifier()
     const response = await axios.get(`${PLEX_TV_API}/user`, {
@@ -136,9 +135,8 @@ export class PlexAuthService {
     }
   }
 
-  // Elenco dei server Plex accessibili con questo account (propri o
-  // condivisi), con la connessione migliore per ciascuno: preferisce quella
-  // sulla stessa rete locale, poi una diretta, infine il relay di Plex.
+  // Plex servers available to this account (owned or shared), each with its
+  // best connection: local network first, then direct, then Plex's relay.
   async getServers(authToken, clientIdentifier) {
     const response = await axios.get(`${PLEX_TV_API}/resources`, {
       params: { includeHttps: 1, includeRelay: 1 },
@@ -152,15 +150,15 @@ export class PlexAuthService {
       resources
         .filter(resource => (resource.provides || '').split(',').includes('server'))
         .map(async resource => {
-          // I server condivisi hanno un accessToken proprio, diverso da
-          // quello dell'account: va usato quello quando presente.
+          // Shared servers have their own accessToken, different from the
+          // account's: use it when present.
           const accessToken = resource.accessToken || authToken
           const connection = await this.pickConnection(resource.connections || [], accessToken)
 
           if (!connection) return null
 
           return {
-            name: resource.name || 'Server Plex',
+            name: resource.name || 'Plex server',
             machineIdentifier: resource.clientIdentifier,
             local: !!connection.local,
             url: connection.address,
@@ -174,8 +172,8 @@ export class PlexAuthService {
     return servers.filter(Boolean)
   }
 
-  // Dispositivi dell'account che fanno da player (Plexamp, app mobile,
-  // Plex HTPC...), per proporli nei filtri con un nome leggibile.
+  // Devices of the account acting as players (Plexamp, mobile apps, Plex
+  // HTPC...), offered in the filters with a readable name.
   async getPlayerResources(authToken) {
     const clientIdentifier = await this.getClientIdentifier()
     const response = await axios.get(`${PLEX_TV_API}/resources`, {
@@ -197,10 +195,10 @@ export class PlexAuthService {
       }))
   }
 
-  // Sceglie la connessione da usare: in ordine di preferenza locale, diretta,
-  // relay, ma solo tra quelle che rispondono davvero. Gli indirizzi "locali"
-  // annunciati da plex.tv non sempre sono raggiungibili (es. Plex in Docker
-  // annuncia l'IP interno del container), quindi vanno provati.
+  // Picks the connection to use: local, then direct, then relay, but only
+  // among those that actually answer. The "local" addresses advertised by
+  // plex.tv are not always reachable (e.g. Plex in Docker advertises the
+  // container's internal IP), so they are probed.
   async pickConnection(connections, token) {
     const ordered = [
       ...connections.filter(c => c.local && !c.relay),
@@ -225,7 +223,7 @@ export class PlexAuthService {
     return ordered.find((c, i) => reachable[i]) || ordered[0] || null
   }
 
-  // Verifica se un token è ancora valido (non revocato dall'utente)
+  // Checks whether a token is still valid (not revoked by the user)
   async verifyToken(token) {
     try {
       await axios.get(`${PLEX_TV_API}/user`, {
@@ -235,7 +233,7 @@ export class PlexAuthService {
       return true
     } catch (error) {
       if (error.response?.status === 401) return false
-      throw error // errore di rete: non sappiamo se il token è valido
+      throw error // network error: we can't tell whether the token is valid
     }
   }
 }

@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  // Mostrata in fondo alle pagine del telefono: aiuta a capire se il
-  // browser sta usando una versione vecchia dalla cache
+  // Shown at the bottom of the phone pages: tells whether the browser is
+  // using an old cached version
   define: {
     __BUILD_TIME__: JSON.stringify(
       new Date().toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
@@ -14,8 +14,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Il service worker registrato in main.jsx ricarica la pagina appena
-      // c'è una versione nuova, invece di servire quella vecchia dalla cache
+      // The service worker registered in main.jsx reloads the page as soon as
+      // there is a new version, instead of serving the old one from the cache
       injectRegister: null,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],

@@ -1,9 +1,12 @@
 import { useEffect } from 'react'
+import { useT } from '../../i18n'
 import './phone.css'
 
-// Contenitore delle pagine aperte dal telefono: a differenza del kiosk qui
-// la pagina deve poter scorrere e i campi di testo essere selezionabili.
+// Container of the pages opened on the phone: unlike the kiosk, the page must
+// scroll and its text fields must be selectable.
 const PhonePage = ({ title, subtitle, children }) => {
+  const t = useT()
+
   useEffect(() => {
     const previous = document.body.style.overflow
     document.body.style.overflow = 'auto'
@@ -20,7 +23,7 @@ const PhonePage = ({ title, subtitle, children }) => {
         {subtitle && <p className="phone-step">{subtitle}</p>}
         {title && <h1>{title}</h1>}
         {children}
-        <p className="phone-version">Versione {__BUILD_TIME__}</p>
+        <p className="phone-version">{t('common.version', { version: __BUILD_TIME__ })}</p>
       </main>
     </div>
   )

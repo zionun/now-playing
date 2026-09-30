@@ -8,16 +8,16 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000
 const MIN_REFRESH_GAP_MS = 30 * 1000
 const FAILURE_COOLDOWN_MS = 10 * 60 * 1000
 
-// 📋 ELENCO DEI PLAYER E DI COME CONTROLLARLI (sostituisce la discovery nmap)
-// Fonti, nessuna delle quali richiede comandi di shell:
-// - GET /clients del server Plex: player che il server vede e sa controllare
-// - risorse plex.tv con provides=player (Plexamp, app mobili, TV...)
-// - GDM: broadcast UDP sulla rete locale, risponde chi accetta comandi diretti
-// - sessioni: Player.address dei player in LAN, verificato con /resources
+// 📋 KNOWN PLAYERS AND HOW TO CONTROL THEM (replaces the nmap discovery)
+// Sources, none of which needs shell commands:
+// - GET /clients of the Plex server: players the server sees and can control
+// - plex.tv resources with provides=player (Plexamp, mobile apps, TVs...)
+// - GDM: UDP broadcast on the local network, answered by players accepting direct commands
+// - sessions: Player.address of players on the LAN, checked with /resources
 //
-// Per ogni player si sa quindi se è controllabile tramite il server Plex
-// (viaServer) e/o direttamente (direct: indirizzo e porta). Un comando
-// fallito nasconde i controlli per quel player per 10 minuti.
+// So for each player we know whether it can be controlled through the Plex
+// server (viaServer) and/or directly (direct: address and port). A failed
+// command hides that player's controls for 10 minutes.
 export class PlayerDirectory {
   constructor({
     plexClient,
@@ -73,8 +73,8 @@ export class PlayerDirectory {
     this.players.set(id, { ...current, ...rest, sources, lastSeen: this.now() })
   }
 
-  // Aggiorna l'elenco da tutte le fonti; le richieste ravvicinate condividono
-  // quella in corso.
+  // Refreshes the list from every source; close requests share the one in
+  // progress.
   refresh({ force = false } = {}) {
     if (this.refreshInFlight) return this.refreshInFlight
     if (!force && this.now() - this.lastRefreshAt < MIN_REFRESH_GAP_MS) return Promise.resolve()
@@ -104,12 +104,12 @@ export class PlayerDirectory {
         })
       }
     } else {
-      log.debug('GET /clients non riuscito:', clients.reason?.message)
+      log.debug('GET /clients failed:', clients.reason?.message)
     }
 
     if (resources.status === 'fulfilled') {
       for (const resource of resources.value || []) {
-        // pubsub-player: controllabile a distanza tramite Plex
+        // pubsub-player: remotely controllable through Plex
         const remote = (resource.provides || []).includes('pubsub-player')
         const known = this.players.get(String(resource.machineIdentifier))
         this.upsert(resource.machineIdentifier, {
@@ -120,7 +120,7 @@ export class PlayerDirectory {
         })
       }
     } else {
-      log.debug('Risorse plex.tv non disponibili:', resources.reason?.message)
+      log.debug('plex.tv resources not available:', resources.reason?.message)
     }
 
     if (gdm.status === 'fulfilled') {
@@ -136,12 +136,12 @@ export class PlayerDirectory {
     }
 
     log.info(
-      `Player noti: ${this.players.size} (${[...this.players.values()].filter(p => this.isControllable(p.machineIdentifier)).length} controllabili)`
+      `Known players: ${this.players.size} (${[...this.players.values()].filter(p => this.isControllable(p.machineIdentifier)).length} controllable)`
     )
   }
 
-  // I player delle sessioni in LAN hanno un indirizzo (Player.address): si
-  // verifica una sola volta se accettano comandi diretti sulla porta 32500.
+  // Players of LAN sessions have an address (Player.address): check once
+  // whether they accept direct commands on port 32500.
   noteSessionPlayers(players) {
     let unknown = false
     for (const player of players) {
@@ -160,12 +160,12 @@ export class PlayerDirectory {
               direct: { address: player.address, port: 32500 },
               source: 'probe'
             })
-            log.info(`Controllo diretto disponibile per ${player.name} (${player.address})`)
+            log.info(`Direct control available for ${player.name} (${player.address})`)
           }
         })
       }
     }
-    // Un player mai visto prima: forse le altre fonti ne sanno qualcosa
+    // A player never seen before: the other sources may know about it
     if (unknown) this.refresh()
   }
 
@@ -201,7 +201,7 @@ export class PlayerDirectory {
   }
 }
 
-// Verifica se all'indirizzo risponde proprio quel player Plex
+// Checks whether that very Plex player answers at the address
 export async function probeDirect(address, port, machineIdentifier) {
   try {
     const response = await axios.get(`http://${address}:${port}/resources`, { timeout: 2000 })

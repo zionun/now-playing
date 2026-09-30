@@ -8,7 +8,7 @@ import { ConfigService, resolveConfigPath } from '../src/services/ConfigService.
 const tempDir = () => fs.mkdtemp(path.join(os.tmpdir(), 'now-playing-test-'))
 const mode = async file => (await fs.stat(file)).mode & 0o777
 
-test("resolveConfigPath: variabile d'ambiente, poi cartella utente", () => {
+test('resolveConfigPath: environment variable, then user folder', () => {
   assert.equal(resolveConfigPath({ NOW_PLAYING_CONFIG: '/tmp/x/config.json' }), '/tmp/x/config.json')
   if (process.getuid?.() !== 0) {
     assert.equal(
@@ -18,7 +18,7 @@ test("resolveConfigPath: variabile d'ambiente, poi cartella utente", () => {
   }
 })
 
-test('prima esecuzione: crea la configurazione iniziale con permessi 600', async () => {
+test('first run: creates the initial configuration with permissions 600', async () => {
   const dir = await tempDir()
   const configPath = path.join(dir, 'nested', 'config.json')
   const service = new ConfigService({ configPath, legacyPath: path.join(dir, 'none.json') })
@@ -28,7 +28,7 @@ test('prima esecuzione: crea la configurazione iniziale con permessi 600', async
   assert.equal(await mode(path.dirname(configPath)), 0o700)
 })
 
-test('sposta la configurazione dalla vecchia posizione nel repository', async () => {
+test('moves the configuration from the old location in the repository', async () => {
   const dir = await tempDir()
   const legacyPath = path.join(dir, 'app.json')
   const configPath = path.join(dir, 'new', 'config.json')
@@ -41,11 +41,11 @@ test('sposta la configurazione dalla vecchia posizione nel repository', async ()
 
   assert.equal(service.getConfig().plex.token, 'abc')
   assert.equal('preferredUser' in service.getConfig().plex, false)
-  await assert.rejects(fs.access(legacyPath)) // il vecchio file non c'è più
+  await assert.rejects(fs.access(legacyPath)) // the old file is gone
   assert.equal(await mode(configPath), 0o600)
 })
 
-test('non sovrascrive una configurazione già presente nella nuova posizione', async () => {
+test('does not overwrite a configuration already in the new location', async () => {
   const dir = await tempDir()
   const legacyPath = path.join(dir, 'app.json')
   const configPath = path.join(dir, 'config.json')
@@ -57,10 +57,10 @@ test('non sovrascrive una configurazione già presente nella nuova posizione', a
   assert.equal(service.getConfig().plex.token, 'nuovo')
 })
 
-test('file illeggibile: messo da parte, non sovrascritto', async () => {
+test('unreadable file: set aside, not overwritten', async () => {
   const dir = await tempDir()
   const configPath = path.join(dir, 'config.json')
-  await fs.writeFile(configPath, '{ non è json')
+  await fs.writeFile(configPath, '{ not json')
 
   const service = new ConfigService({ configPath, legacyPath: null })
   await service.loadConfig()
@@ -70,7 +70,7 @@ test('file illeggibile: messo da parte, non sovrascritto', async () => {
   assert.equal(service.getConfig().plex.token, '')
 })
 
-test('salvataggio: permessi 600 e nessun file temporaneo rimasto', async () => {
+test('saving: permissions 600 and no temporary file left', async () => {
   const dir = await tempDir()
   const configPath = path.join(dir, 'config.json')
   const service = new ConfigService({ configPath, legacyPath: null })

@@ -14,7 +14,7 @@ export class LastfmService {
     this.lastError = null
   }
 
-  // Configurazione effettiva: la API key può arrivare anche da LASTFM_API_KEY
+  // Effective configuration: the API key can also come from LASTFM_API_KEY
   config() {
     const config = this.configService.getLastfmConfig()
     return { ...config, apiKey: config.apiKey || process.env.LASTFM_API_KEY || '' }
@@ -41,11 +41,11 @@ export class LastfmService {
     }
   }
 
-  // Ultima traccia ascoltata, mostrata come "traccia" quando non suona nulla.
-  // In cache per 30s: viene richiesta a ogni aggiornamento dello schermo.
+  // Last played track, used as the "track" when nothing is playing. Cached
+  // for 30s: it is requested on every screen update.
   async getFallbackTrack() {
     if (!this.isConfigured()) {
-      return { title: 'Last.fm non configurato', artist: '', album: '', isLastFm: true, isPlaying: false }
+      return { title: 'Last.fm not configured', artist: '', album: '', isLastFm: true, isPlaying: false }
     }
     if (this.fallbackCache.data && Date.now() - this.fallbackCache.fetchedAt < FALLBACK_CACHE_TTL_MS) {
       return this.fallbackCache.data
@@ -54,7 +54,7 @@ export class LastfmService {
       const [track] = await this.getRecentTracks(1)
       const data = track
         ? {
-            title: track.name || 'Titolo sconosciuto',
+            title: track.name || 'Unknown title',
             artist: track.artist?.['#text'] || track.artist || '',
             album: track.album?.['#text'] || track.album || '',
             thumb: track.image?.[2]?.['#text'] || null,
@@ -63,7 +63,7 @@ export class LastfmService {
             lastfmUrl: track.url
           }
         : {
-            title: 'Nessuna traccia trovata',
+            title: 'No track found',
             artist: this.config().username,
             album: 'Last.fm',
             isLastFm: true,
@@ -72,9 +72,9 @@ export class LastfmService {
       this.fallbackCache = { data, fetchedAt: Date.now() }
       return data
     } catch (error) {
-      log.warn('Ultima traccia non disponibile:', this.lastError)
+      log.warn('Last track not available:', this.lastError)
       return {
-        title: 'Last.fm non raggiungibile',
+        title: 'Last.fm not reachable',
         artist: '',
         album: 'Last.fm',
         isLastFm: true,
@@ -154,7 +154,7 @@ export class LastfmService {
       }
 
       const remainingSlots = targetLimit - allAlbums.length
-      log.debug(`Album dal periodo ${period} (ne mancano ${remainingSlots})`)
+      log.debug(`Albums from period ${period} (${remainingSlots} missing)`)
 
       try {
         const periodAlbums = await this.getTopAlbums(period, 50) // Fetch more to increase chances of finding unique ones
@@ -170,7 +170,7 @@ export class LastfmService {
           }
         }
       } catch (error) {
-        log.debug(`Album del periodo ${period} non disponibili:`, error.message)
+        log.debug(`Albums for period ${period} not available:`, error.message)
         // Continue with next period even if this one fails
       }
     }
@@ -193,7 +193,7 @@ export class LastfmService {
         topAlbums: topAlbums // Albums from cascading time periods, ordered by relevance
       }
     } catch (error) {
-      log.warn('Dati per la schermata idle non disponibili:', error.message)
+      log.warn('Idle screen data not available:', error.message)
       throw error
     }
   }

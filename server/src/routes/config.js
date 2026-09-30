@@ -19,7 +19,7 @@ export function setConfigService(
   getFilterOptions = filterOptions
 }
 
-// Tutta la configurazione richiede la sessione aperta con la password
+// All settings require the session opened with the password
 router.use((req, res, next) => setupService.requireSession(req, res, next))
 
 // Get configuration (excluding sensitive data)
@@ -52,8 +52,8 @@ router.get('/', (req, res) => {
   }
 })
 
-// Opzioni per i filtri: utenti del server Plex e player noti (dal server,
-// da plex.tv, dalla rete locale e dalle sessioni viste di recente)
+// Filter options: users of the Plex server and known players (from the
+// server, plex.tv, the local network and recently seen sessions)
 router.get('/filter-options', async (req, res) => {
   try {
     res.json(await getFilterOptions())
@@ -67,12 +67,12 @@ router.post('/', async (req, res) => {
   try {
     const { config: newConfig } = req.body
 
-    // La password si cambia solo da /api/auth/password/change
+    // The password can only be changed through /api/auth/password/change
     const { users, ...rest } = newConfig || {}
     await configService.updateConfig(rest)
 
-    // Applica subito le modifiche (URL/token Plex, chiavi Last.fm...) senza
-    // richiedere un riavvio del processo.
+    // Apply the changes (Plex URL/token, Last.fm keys...) right away, without
+    // restarting the process.
     if (onConfigUpdated) {
       await onConfigUpdated()
     }

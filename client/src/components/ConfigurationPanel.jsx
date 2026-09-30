@@ -46,6 +46,8 @@ const ConfigurationPanel = () => {
       setPrefs({
         showControlsTimeout: configData.display?.showControlsTimeout || 4000,
         enableLastfmIdle: configData.display?.enableLastfmIdle !== false,
+        screenAlwaysOn: !!configData.display?.screenAlwaysOn,
+        screenSleepMinutes: configData.display?.screenSleepMinutes || 5,
         language: configData.display?.language || 'auto'
       })
       setAdvanced({ url: configData.plex.url || '', port: configData.plex.port || 32400, token: '' })
@@ -268,6 +270,32 @@ const ConfigurationPanel = () => {
             />
             {t('settings.showLastfm')}
           </label>
+          {config?.screenSleepAvailable && (
+            <>
+              <label className="phone-checkbox">
+                <input
+                  type="checkbox"
+                  checked={prefs.screenAlwaysOn}
+                  onChange={e => setPrefs({ ...prefs, screenAlwaysOn: e.target.checked })}
+                />
+                {t('settings.screenAlwaysOn')}
+              </label>
+              <label htmlFor="screen-sleep">{t('settings.screenSleepMinutes')}</label>
+              <input
+                id="screen-sleep"
+                type="number"
+                min="1"
+                max="240"
+                step="1"
+                disabled={prefs.screenAlwaysOn}
+                value={prefs.screenSleepMinutes}
+                onChange={e =>
+                  setPrefs({ ...prefs, screenSleepMinutes: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                }
+              />
+              <p className="phone-small">{t('settings.screenSleepHint')}</p>
+            </>
+          )}
           {prefsMessage && <p className="phone-success">{t(prefsMessage.key, prefsMessage.params)}</p>}
           <button type="submit" className="phone-btn phone-btn-primary">
             {t('settings.savePrefs')}

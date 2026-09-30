@@ -1,0 +1,18 @@
+/* Above everything, including the settings QR code */
+.screen-sleep {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  touch-action: none;
+}
+
+/* Black: on displays without backlight control this is what turns them "off" */
+.screen-sleep.off {
+  background: #000;
+  cursor: none;
+}
+
+/* Just woken up: invisible, only catches the rest of the tap */
+.screen-sleep.waking {
+  background: transparent;
+}

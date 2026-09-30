@@ -32,6 +32,8 @@ export const WebSocketProvider = ({ children }) => {
   const [configVersion, setConfigVersion] = useState(0)
   // Plex/Last.fm status for the discreet on-screen indicator
   const [health, setHealth] = useState(null)
+  // Screen backlight: off after some minutes with nothing playing
+  const [screenOn, setScreenOn] = useState(true)
   // "Screen" options chosen from the phone (controls duration, Last.fm when idle, language)
   const [display, setDisplay] = useState(DEFAULT_DISPLAY)
 
@@ -78,6 +80,7 @@ export const WebSocketProvider = ({ children }) => {
     // Settings changed from the phone: whatever depends on them reloads
     socketConnection.on('configUpdated', () => setConfigVersion(v => v + 1))
     socketConnection.on('health', setHealth)
+    socketConnection.on('screenPower', data => setScreenOn(data?.on !== false))
     // Plex not set up, or its token revoked/expired
     socketConnection.on('authRequired', () => setAuthRequired(true))
 
@@ -100,6 +103,11 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
+  // A tap on the kiosk: turns the screen on and restarts its sleep countdown
+  const wakeScreen = useCallback(() => {
+    if (socket && socket.connected) socket.emit('wake')
+  }, [socket])
+
   // Called by the QR screen as soon as the server confirms the device is set
   // up, to go back to the normal interface right away.
   const markAuthenticated = useCallback(() => setAuthRequired(false), [])
@@ -120,6 +128,8 @@ export const WebSocketProvider = ({ children }) => {
     configVersion,
     health,
     display,
+    screenOn,
+    wakeScreen,
     markAuthenticated
   }
 

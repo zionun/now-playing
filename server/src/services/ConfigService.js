@@ -110,7 +110,9 @@ export class ConfigService {
       config.plex = plex
     }
     config.filters = normalizeFilters(config.filters)
-    config.display = { language: 'auto', ...config.display }
+    // display.idleTimeout was never used: replaced by screenSleepMinutes
+    const { idleTimeout, ...display } = config.display || {}
+    config.display = { language: 'auto', screenAlwaysOn: false, screenSleepMinutes: 5, ...display }
     return config
   }
 
@@ -132,8 +134,9 @@ export class ConfigService {
       },
       display: {
         showControlsTimeout: 4000, // 4 seconds
-        idleTimeout: 300000, // 5 minutes
         enableLastfmIdle: true,
+        screenAlwaysOn: false, // true: the screen never turns off
+        screenSleepMinutes: 5, // minutes with nothing playing before it turns off
         language: 'auto' // 'auto' (device language), 'en' or 'it'
       },
       users: {

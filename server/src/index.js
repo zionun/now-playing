@@ -14,6 +14,8 @@ import { PlexEventStream } from './plex/PlexEventStream.js'
 import { PlayerDirectory } from './plex/PlayerDirectory.js'
 import { PlaybackController } from './plex/PlaybackController.js'
 import { NowPlayingService } from './app/NowPlayingService.js'
+import { DisplayPower, createBacklight } from './app/DisplayPower.js'
+import { detectHyperPixelSquare } from './app/displayDetect.js'
 import { attachSocketHandlers } from './realtime/socketHandlers.js'
 import lastfmRouter, { setLastfmService } from './routes/lastfm.js'
 import configRouter, { setConfigService } from './routes/config.js'
@@ -60,6 +62,15 @@ const directory = new PlayerDirectory({
 })
 const playback = new PlaybackController({ plexClient, directory, getConnection: plexConnection })
 
+// Screen sleep: off after some minutes with nothing playing (settings →
+// Screen). Only with a HyperPixel 4.0 Square connected.
+const hyperPixel = detectHyperPixelSquare()
+const displayPower = new DisplayPower({
+  available: hyperPixel.present,
+  backlight: hyperPixel.present ? createBacklight() : { available: false, set: async () => {} },
+  getSettings: () => configService.getConfig().display
+})
+
 const nowPlaying = new NowPlayingService({
   configService,
   plexClient,
@@ -67,7 +78,8 @@ const nowPlaying = new NowPlayingService({
   directory,
   playback,
   lastfm: lastfmService,
-  plexAuthService
+  plexAuthService,
+  displayPower
 })
 
 // 📋 EXPRESS
@@ -80,7 +92,13 @@ const reloadConfig = () => nowPlaying.reloadConfig()
 
 setLastfmService(lastfmService)
 app.use('/api/lastfm', lastfmRouter)
-setConfigService(configService, reloadConfig, deviceSetupService, () => nowPlaying.filterOptions())
+setConfigService(
+  configService,
+  reloadConfig,
+  deviceSetupService,
+  () => nowPlaying.filterOptions(),
+  () => displayPower.available
+)
 app.use('/api/config', configRouter)
 setAuthServices(configService, plexAuthService, reloadConfig, deviceSetupService)
 app.use('/api/auth', authRouter)
@@ -101,6 +119,7 @@ app.get('/api/display-settings', (req, res) => {
   res.json({
     showControlsTimeout: display.showControlsTimeout || 4000,
     enableLastfmIdle: display.enableLastfmIdle !== false,
+    screenSleepAvailable: displayPower.available,
     language: ['en', 'it'].includes(display.language) ? display.language : 'auto'
   })
 })
@@ -125,7 +144,7 @@ io.engine.on('connection_error', err => {
   log.debug('Socket.IO connection error:', err.message)
 })
 
-attachSocketHandlers(io, nowPlaying)
+attachSocketHandlers(io, nowPlaying, displayPower)
 
 // 📋 UNHANDLED ERRORS
 process.on('uncaughtException', err => {
@@ -141,6 +160,9 @@ process.on('unhandledRejection', reason => {
 // 📋 STARTUP
 server.listen(PORT, () => {
   log.info(`Server started on port ${PORT}`)
+  log.info(
+    `Screen sleep ${hyperPixel.present ? 'available' : 'not available'}: HyperPixel 4.0 Square ${hyperPixel.present ? 'found' : 'not found'} (${hyperPixel.reason})`
+  )
   log.info(`Setup from the phone: ${deviceSetupService.getBaseUrl()}/setup`)
 
   // Configurations created before the QR login don't know the device's Plex
@@ -157,5 +179,14 @@ server.listen(PORT, () => {
   if (!nowPlaying.isConfigured()) {
     log.info('Device not set up: scan the QR code on the screen')
   }
+  displayPower.start()
   nowPlaying.start()
 })
+
+// Stopping (pm2 restart/stop, update): never leave the screen off
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, async () => {
+    await displayPower.stop()
+    process.exit(0)
+  })
+}

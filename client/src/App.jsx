@@ -4,6 +4,7 @@ import ConfigurationPanel from './components/ConfigurationPanel'
 import LoginScreen from './components/LoginScreen'
 import SetupPage from './components/phone/SetupPage'
 import HealthIndicator from './components/HealthIndicator'
+import ScreenSleep from './components/ScreenSleep'
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext'
 
 // Shows the setup QR code instead of the normal interface until the device
@@ -16,6 +17,7 @@ function Home() {
     <>
       <NowPlayingDisplay />
       <HealthIndicator />
+      <ScreenSleep />
     </>
   )
 }

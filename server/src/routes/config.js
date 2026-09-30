@@ -6,17 +6,20 @@ let configService = null
 let onConfigUpdated = null
 let setupService = null
 let getFilterOptions = null
+let isScreenSleepAvailable = () => false
 
 export function setConfigService(
   service,
   reloadCallback = null,
   deviceSetupService = null,
-  filterOptions = null
+  filterOptions = null,
+  screenSleepAvailable = null
 ) {
   configService = service
   onConfigUpdated = reloadCallback
   setupService = deviceSetupService
   getFilterOptions = filterOptions
+  if (screenSleepAvailable) isScreenSleepAvailable = screenSleepAvailable
 }
 
 // All settings require the session opened with the password
@@ -43,6 +46,8 @@ router.get('/', (req, res) => {
         sessionKey: config.lastfm?.sessionKey ? '***' : ''
       },
       display: config.display,
+      // Screen sleep needs a HyperPixel 4.0 Square (backlight control)
+      screenSleepAvailable: isScreenSleepAvailable(),
       hasPassword: !!config.users?.configPassword
     }
 

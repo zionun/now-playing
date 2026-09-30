@@ -22,7 +22,16 @@ const HEALTH_CACHE_MS = 30000
 // and is the only place with timers and mutable state. Emits:
 //   'nowPlaying' (data for the kiosk), 'authRequired', 'configUpdated', 'health'
 export class NowPlayingService extends EventEmitter {
-  constructor({ configService, plexClient, eventStream, directory, playback, lastfm, plexAuthService }) {
+  constructor({
+    configService,
+    plexClient,
+    eventStream,
+    directory,
+    playback,
+    lastfm,
+    plexAuthService,
+    displayPower
+  }) {
     super()
     this.configService = configService
     this.plexClient = plexClient
@@ -31,6 +40,7 @@ export class NowPlayingService extends EventEmitter {
     this.playback = playback
     this.lastfm = lastfm
     this.plexAuthService = plexAuthService
+    this.displayPower = displayPower
 
     this.state = initialState()
     this.seen = new SeenRegistry()
@@ -86,6 +96,7 @@ export class NowPlayingService extends EventEmitter {
     this.directory.clear()
     this.healthCache = null
     this.applyConfig()
+    this.displayPower?.settingsChanged()
     this.emit('configUpdated')
   }
 
@@ -211,6 +222,7 @@ export class NowPlayingService extends EventEmitter {
   }
 
   onScreenChange(previous, screen) {
+    this.displayPower?.update(screen)
     if (screen === 'paused') {
       this.clearPauseTimers()
       this.pauseTimer = setTimeout(() => {
@@ -288,6 +300,16 @@ export class NowPlayingService extends EventEmitter {
     return this.broadcast()
   }
 
+  // A tap on the kiosk: the screen turns on (if it was off) and its sleep
+  // countdown restarts
+  wake() {
+    this.displayPower?.activity('tap')
+  }
+
+  isScreenOn() {
+    return this.displayPower ? this.displayPower.isOn : true
+  }
+
   // 📋 HEALTH (/api/health and the on-screen indicator)
 
   async health({ fresh = false } = {}) {
@@ -346,6 +368,10 @@ export class NowPlayingService extends EventEmitter {
         reachable: lastfmReachable,
         lastError: lastfmReachable === false ? this.lastfm.lastError : null
       },
+      display: {
+        sleepAvailable: this.displayPower ? this.displayPower.available : false,
+        on: this.isScreenOn()
+      },
       players: this.directory.list(),
       uptimeSeconds: Math.round(process.uptime())
     }
@@ -368,6 +394,9 @@ export class NowPlayingService extends EventEmitter {
     }
     const key = JSON.stringify(summary)
     if (key !== this.lastHealthKey) {
+      // A change (not the first report) turns the screen on, so a problem
+      // (or its end) is noticed even when the screen was asleep
+      if (this.lastHealthKey) this.displayPower?.activity('health change')
       this.lastHealthKey = key
       this.emit('health', summary)
     }

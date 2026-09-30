@@ -17,7 +17,8 @@
   },
   "display": {
     "showControlsTimeout": 4000,
-    "idleTimeout": 300000,
+    "screenAlwaysOn": false,
+    "screenSleepMinutes": 5,
     "enableLastfmIdle": true
   },
   "users": {

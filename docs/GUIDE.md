@@ -235,6 +235,28 @@ The file is outside the repository, so updates never touch it and secrets never 
 | Language (automatic, English, Italian) | *Settings → Screen* | automatic |
 | On-screen controls duration | *Settings → Screen* | 4 s |
 | Last.fm data when idle | *Settings → Screen* | on |
+| Screen always on | *Settings → Screen* | off |
+| Turn the screen off after (minutes with nothing playing) | *Settings → Screen* | 5 |
+
+### Screen sleep
+
+With nothing playing, the screen turns off after the configured minutes (unless *Screen always on* is set). It turns back on when music starts, when the screen is tapped (that first tap only wakes it: it never presses the button underneath), when the settings are saved from the phone, when the health state changes (e.g. Plex unreachable or back online, so the problem is visible), and when the app starts or stops, so it is never left off.
+
+The backlight is switched off through `/sys/class/backlight/backlight/brightness`. Another backlight device can be set with `BACKLIGHT_PATH`.
+
+Screen sleep is only available on a **HyperPixel 4.0 Square**: on other displays the screen stays on and the two settings are not shown on the phone. The display is detected at startup; the driver (`dtoverlay=vc4-kms-dpi-hyperpixel4sq`) creates both of these, and both must be there:
+
+- a DPI video output with a 720x720 mode (`/sys/class/drm/cardN-DPI-N/modes`);
+- the backlight device `/sys/class/backlight/backlight`.
+
+The result is in the startup log (`Screen sleep available|not available: HyperPixel 4.0 Square found|not found (...)`) and in `/api/health` (`display.sleepAvailable`). To check by hand:
+
+```bash
+ls /sys/class/drm /sys/class/backlight
+cat /sys/class/drm/card*-DPI-*/modes
+```
+
+`HYPERPIXEL=1` or `HYPERPIXEL=0` forces the result.
 
 ### Environment variables
 
@@ -248,6 +270,8 @@ Optional, in `server/.env` or in `ecosystem.config.cjs`:
 | `LASTFM_API_KEY` | Last.fm API key, if not set from the phone | — |
 | `PLEX_SERVER_URL`, `PLEX_TOKEN` | Override the Plex connection (debugging) | — |
 | `CLIENT_URL` | Development client origin | `http://localhost:3000` |
+| `BACKLIGHT_PATH` | Backlight device for screen sleep | first in `/sys/class/backlight` |
+| `HYPERPIXEL` | `1`/`0`: force HyperPixel Square detection (screen sleep) | detected |
 
 ### PM2
 

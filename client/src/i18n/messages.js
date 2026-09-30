@@ -150,6 +150,10 @@ export const messages = {
       screenTitle: 'Screen',
       controlsDuration: 'On-screen controls duration (seconds)',
       showLastfm: "Show Last.fm data when there's no music",
+      screenAlwaysOn: 'Keep the screen always on',
+      screenSleepMinutes: 'Turn the screen off after (minutes with nothing playing)',
+      screenSleepHint:
+        'A tap turns it back on (without pressing anything); it also turns on by itself when music starts.',
       language: 'Language',
       languageAuto: 'Automatic (device language)',
       savePrefs: 'Save preferences',
@@ -351,6 +355,10 @@ export const messages = {
       screenTitle: 'Schermo',
       controlsDuration: 'Durata dei controlli a schermo (secondi)',
       showLastfm: "Mostra i dati Last.fm quando non c'è musica",
+      screenAlwaysOn: 'Schermo sempre acceso',
+      screenSleepMinutes: 'Spegni lo schermo dopo (minuti senza riproduzione)',
+      screenSleepHint:
+        'Un tocco lo riaccende (senza premere nulla); si riaccende da solo anche quando parte la musica.',
       language: 'Lingua',
       languageAuto: 'Automatica (lingua del dispositivo)',
       savePrefs: 'Salva preferenze',

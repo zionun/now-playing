@@ -21,6 +21,10 @@ Work towards v1.0.0 (roadmap phases 4–6).
 - Release workflow creating GitHub releases from this changelog.
 - Acceptance test scripts for the device (`scripts/pi/`): 72-hour soak monitor with a
   pass/fail report, recovery test after a Plex restart or a Wi-Fi drop.
+- Screen sleep: with nothing playing the screen turns off after a configurable time
+  (default 5 minutes, or always on); a tap (which never presses what is underneath),
+  music starting, a settings change or a change in the health state turn it back on.
+  Only on a HyperPixel 4.0 Square, detected at startup (`HYPERPIXEL=1`/`0` to force).
 - Interface in English and Italian, with a language setting (automatic = device language);
   API errors carry codes translated by the interface.
 

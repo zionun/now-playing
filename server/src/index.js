@@ -93,6 +93,15 @@ app.use('/api', createPlexRouter({
   getToken: () => plexConnection().token
 }));
 
+// Opzioni di visualizzazione del kiosk (nessun dato riservato)
+app.get('/api/display-settings', (req, res) => {
+  const display = configService.getConfig().display || {};
+  res.json({
+    showControlsTimeout: display.showControlsTimeout || 4000,
+    enableLastfmIdle: display.enableLastfmIdle !== false
+  });
+});
+
 // Tutte le altre pagine sono gestite dall'app React
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../client/dist/index.html'));

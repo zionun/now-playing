@@ -4,8 +4,6 @@
 set -euo pipefail
 
 APP_DIR="/opt/now-playing"
-CONFIG_FILE="server/src/config/app.json"
-BACKUP_FILE="/tmp/now-playing-config-backup.json"
 
 fail() { echo "❌ $1"; exit 1; }
 
@@ -14,20 +12,12 @@ echo "🔄 Updating Now Playing for Plex..."
 [ "$EUID" -eq 0 ] || fail "Please run as root (use sudo)"
 [ "$(pwd)" = "$APP_DIR" ] || fail "Run this script from $APP_DIR: cd $APP_DIR && sudo ./update.sh"
 
-# The configuration is not tracked by git, but keep a copy anyway
-if [ -f "$CONFIG_FILE" ]; then
-    cp "$CONFIG_FILE" "$BACKUP_FILE"
-    echo "💾 Configuration backed up to $BACKUP_FILE"
-fi
-
+# The configuration lives outside the repository (/var/lib/now-playing),
+# so updating the code never touches it. An old server/src/config/app.json
+# is ignored by git and moved there automatically when the server starts.
 echo "📥 Downloading the latest version..."
 git fetch origin
 git reset --hard origin/main
-
-if [ -f "$BACKUP_FILE" ] && [ ! -f "$CONFIG_FILE" ]; then
-    cp "$BACKUP_FILE" "$CONFIG_FILE"
-    echo "♻️  Configuration restored"
-fi
 
 # The service keeps running during the update: it is reloaded at the end.
 # Dependencies (exact versions from the lockfiles). Only what production
@@ -64,8 +54,6 @@ for i in $(seq 1 15); do
     [ "$i" -eq 15 ] && fail "The server is not answering: check 'pm2 logs now-playing'"
     sleep 2
 done
-
-rm -f "$BACKUP_FILE"
 
 echo ""
 echo "✅ Update completed!"

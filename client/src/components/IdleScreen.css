@@ -512,3 +512,22 @@
     padding: 0.5rem;
   }
 }
+/* Riprendi, quando i dati Last.fm in idle sono disattivati */
+.idle-resume-button {
+  margin-top: 1.5rem;
+  padding: 0.8rem 1.4rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-color);
+  color: #000;
+  font-size: 1rem;
+  font-weight: 600;
+  max-width: 90vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idle-resume-button:disabled {
+  opacity: 0.5;
+}

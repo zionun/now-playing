@@ -3,14 +3,20 @@ import { useWebSocket } from '../context/WebSocketContext'
 import './IdleScreen.css'
 
 const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRemaining, isPaused, hasControls = false }) => {
-  const { socket, configVersion } = useWebSocket()
+  const { socket, configVersion, display } = useWebSocket()
+  // Last.fm in idle disattivato dal telefono (Impostazioni → Schermo)
+  const lastfmEnabled = display?.enableLastfmIdle !== false
   const [lastfmData, setLastfmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [lastTouchTime, setLastTouchTime] = useState(0)
 
   useEffect(() => {
-    // Carica sempre i dati Last.fm per la griglia
+    if (!lastfmEnabled) {
+      setLastfmData(null)
+      setLoading(false)
+      return undefined
+    }
     fetchLastfmData()
     
     // Refresh data every 5 minutes
@@ -18,7 +24,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
     
     return () => clearInterval(interval)
     // configVersion: Last.fm appena collegato/modificato dal telefono
-  }, [hasResumeOption, configVersion])
+  }, [hasResumeOption, configVersion, lastfmEnabled])
 
   const fetchLastfmData = async () => {
     try {
@@ -120,7 +126,22 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, pauseTimeRema
       onClick={onInteraction}
       onTouchStart={onInteraction}
     >
-      {loading ? (
+      {!lastfmEnabled ? (
+        <div className="idle-error">
+          <div className="error-icon">♪</div>
+          <h2>Nessuna musica in riproduzione</h2>
+          {hasResumeOption && resumeTrack && (
+            <button
+              className="idle-resume-button"
+              onClick={handleResume}
+              onTouchStart={handleResume}
+              disabled={!hasControls}
+            >
+              ▶ {resumeTrack.title} — {resumeTrack.artist}
+            </button>
+          )}
+        </div>
+      ) : loading ? (
         <div className="idle-loading">
           <div className="spinner"></div>
           <p>Caricamento dati Last.fm...</p>

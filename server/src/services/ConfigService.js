@@ -1,4 +1,5 @@
 import fs from 'fs/promises'
+import os from 'os'
 import path from 'path'
 // bcryptjs: JavaScript puro (niente compilazione sul Raspberry), compatibile
 // con gli hash creati in precedenza da bcrypt
@@ -11,23 +12,86 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // 10 round: sicuro e verificabile in meno di un secondo anche su un Pi Zero 2
 const BCRYPT_ROUNDS = 10
 
+// Vecchia posizione, dentro il repository: viene spostata al primo avvio
+export const LEGACY_CONFIG_PATH = path.join(__dirname, '../config/app.json')
+
+// 📋 DOVE STA LA CONFIGURAZIONE - Fuori dal repository, così gli
+// aggiornamenti (git) non la toccano e i segreti non finiscono mai in git:
+// - NOW_PLAYING_CONFIG, se impostata
+// - /var/lib/now-playing/config.json se il server gira come root (Raspberry)
+// - ~/.config/now-playing/config.json altrimenti (sviluppo)
+export function resolveConfigPath(env = process.env) {
+  if (env.NOW_PLAYING_CONFIG) return path.resolve(env.NOW_PLAYING_CONFIG)
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    return '/var/lib/now-playing/config.json'
+  }
+  const configHome = env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
+  return path.join(configHome, 'now-playing', 'config.json')
+}
+
+const exists = async file => fs.access(file).then(() => true, () => false)
+
 export class ConfigService {
-  constructor() {
-    this.configPath = path.join(__dirname, '../config/app.json')
+  constructor({ configPath = resolveConfigPath(), legacyPath = LEGACY_CONFIG_PATH } = {}) {
+    this.configPath = configPath
+    this.legacyPath = legacyPath
     this.config = null
     // Don't call loadConfig here, it should be called explicitly
   }
 
   async loadConfig() {
+    await this.migrateLegacyFile()
+
+    let configData
     try {
-      const configData = await fs.readFile(this.configPath, 'utf8')
-      this.config = this.migrate(JSON.parse(configData))
-      console.log('Configuration loaded successfully')
+      configData = await fs.readFile(this.configPath, 'utf8')
     } catch (error) {
-      console.log('No config file found, creating default...')
+      if (error.code !== 'ENOENT') throw error
+      console.log(`Nessuna configurazione in ${this.configPath}: creo quella iniziale`)
       this.config = this.getDefaultConfig()
       await this.saveConfig()
+      return
     }
+
+    try {
+      this.config = this.migrate(JSON.parse(configData))
+    } catch (error) {
+      // File illeggibile: lo si mette da parte invece di sovrascriverlo, così
+      // password e collegamenti si possono ancora recuperare a mano
+      const brokenPath = `${this.configPath}.broken-${Date.now()}`
+      await fs.rename(this.configPath, brokenPath)
+      console.error(`Configurazione non valida, spostata in ${brokenPath}: riparto da quella iniziale`)
+      this.config = this.getDefaultConfig()
+      await this.saveConfig()
+      return
+    }
+
+    // I permessi potrebbero essere stati allargati a mano
+    await fs.chmod(this.configPath, 0o600).catch(() => {})
+    console.log(`Configurazione caricata da ${this.configPath}`)
+  }
+
+  // Configurazione nella vecchia posizione (dentro il repository) e non
+  // ancora in quella nuova: la si sposta, una volta sola.
+  async migrateLegacyFile() {
+    if (!this.legacyPath || this.legacyPath === this.configPath) return
+    if (!(await exists(this.legacyPath)) || (await exists(this.configPath))) return
+
+    const data = await fs.readFile(this.legacyPath, 'utf8')
+    await this.writeAtomically(data)
+    await fs.unlink(this.legacyPath)
+    console.log(`Configurazione spostata da ${this.legacyPath} a ${this.configPath}`)
+  }
+
+  // Scrittura atomica (file temporaneo + rename): un'interruzione di corrente
+  // durante il salvataggio non lascia mai un file a metà. Permessi 600: la
+  // configurazione contiene token e password.
+  async writeAtomically(data) {
+    const dir = path.dirname(this.configPath)
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 })
+    const tmpPath = `${this.configPath}.tmp-${process.pid}`
+    await fs.writeFile(tmpPath, data, { mode: 0o600 })
+    await fs.rename(tmpPath, this.configPath)
   }
 
   // Configurazioni salvate da versioni precedenti: plex.preferredUser (mai
@@ -70,11 +134,7 @@ export class ConfigService {
 
   async saveConfig() {
     try {
-      // Ensure config directory exists
-      const configDir = path.dirname(this.configPath)
-      await fs.mkdir(configDir, { recursive: true })
-      
-      await fs.writeFile(this.configPath, JSON.stringify(this.config, null, 2))
+      await this.writeAtomically(JSON.stringify(this.config, null, 2))
     } catch (error) {
       console.error('Error saving config:', error)
       throw error

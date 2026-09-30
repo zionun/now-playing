@@ -30,6 +30,15 @@ export const WebSocketProvider = ({ children }) => {
   const [configVersion, setConfigVersion] = useState(0)
   // Stato di Plex/Last.fm per l'indicatore discreto a schermo
   const [health, setHealth] = useState(null)
+  // Opzioni "Schermo" scelte dal telefono (durata controlli, Last.fm in idle)
+  const [display, setDisplay] = useState({ showControlsTimeout: 4000, enableLastfmIdle: true })
+
+  useEffect(() => {
+    fetch('/api/display-settings')
+      .then(res => res.json())
+      .then(setDisplay)
+      .catch(() => {}) // restano i valori predefiniti
+  }, [configVersion])
 
   useEffect(() => {
     fetch('/api/auth/state')
@@ -190,6 +199,7 @@ export const WebSocketProvider = ({ children }) => {
     authChecked,
     configVersion,
     health,
+    display,
     markAuthenticated
   }
 

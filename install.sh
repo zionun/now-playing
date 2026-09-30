@@ -62,7 +62,6 @@ pm2 set pm2-logrotate:compress true
 if [ "$SOURCE_DIR" != "$APP_DIR" ]; then
     echo "📋 Copying application files to $APP_DIR..."
     mkdir -p "$APP_DIR"
-    # An existing configuration (password, Plex, Last.fm) is kept
     cp -r "$SOURCE_DIR"/. "$APP_DIR"/
 fi
 cd "$APP_DIR"
@@ -112,6 +111,8 @@ echo "  pm2 status                      - Check application status"
 echo "  pm2 logs now-playing            - View application logs"
 echo "  pm2 restart now-playing         - Restart application"
 echo "  curl localhost:3001/api/health  - Plex / Last.fm status"
+echo ""
+echo "⚙️  Configuration file: /var/lib/now-playing/config.json"
 
 if [ "$SOURCE_DIR" != "$APP_DIR" ]; then
     echo ""

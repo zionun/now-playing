@@ -5,7 +5,9 @@ import IdleScreen from './IdleScreen'
 import './NowPlayingDisplay.css'
 
 const NowPlayingDisplay = () => {
-  const { nowPlaying, connectionStatus } = useWebSocket()
+  const { nowPlaying, connectionStatus, display } = useWebSocket()
+  // Durata dei controlli a schermo, scelta dal telefono (Impostazioni → Schermo)
+  const controlsTimeout = display?.showControlsTimeout || 4000
   const [showOverlay, setShowOverlay] = useState(false)
   const [overlayTimeout, setOverlayTimeout] = useState(null)
   const [interpolatedProgress, setInterpolatedProgress] = useState(0)
@@ -81,7 +83,7 @@ const NowPlayingDisplay = () => {
     // Set new timeout to hide overlay - longer to give time for animations
     const newTimeout = setTimeout(() => {
       setShowOverlay(false)
-    }, 6000) // Increased from 4 to 6 seconds
+    }, controlsTimeout)
     
     setOverlayTimeout(newTimeout)
   }
@@ -94,7 +96,7 @@ const NowPlayingDisplay = () => {
     
     const newTimeout = setTimeout(() => {
       setShowOverlay(false)
-    }, 6000) // Increased here too
+    }, controlsTimeout)
     
     setOverlayTimeout(newTimeout)
   }

@@ -124,6 +124,13 @@ app.get('/api/display-settings', (req, res) => {
   })
 })
 
+// A tap on the sleeping kiosk, when its Socket.IO connection is down (the
+// same as the 'wake' event): turning the screen on is harmless, no session
+app.post('/api/display/wake', (req, res) => {
+  nowPlaying.wake()
+  res.json({ on: nowPlaying.isScreenOn() })
+})
+
 // Every other page is handled by the React app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../client/dist/index.html'))

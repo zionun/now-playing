@@ -103,9 +103,22 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
-  // A tap on the kiosk: turns the screen on and restarts its sleep countdown
+  // A tap on the kiosk: turns the screen on and restarts its sleep countdown.
+  // Without the Socket.IO connection (it may drop while the screen is off)
+  // the request goes over HTTP, so a tap always wakes the screen.
   const wakeScreen = useCallback(() => {
-    if (socket && socket.connected) socket.emit('wake')
+    if (socket && socket.connected) {
+      socket.emit('wake')
+      return
+    }
+    socket?.connect()
+    const serverUrl = import.meta.env.PROD ? window.location.origin : 'http://localhost:3001'
+    fetch(`${serverUrl}/api/display/wake`, { method: 'POST' })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (data) setScreenOn(data.on !== false)
+      })
+      .catch(() => {})
   }, [socket])
 
   // Called by the QR screen as soon as the server confirms the device is set

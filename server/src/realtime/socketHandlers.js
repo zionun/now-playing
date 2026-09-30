@@ -14,7 +14,7 @@ export function attachSocketHandlers(io, nowPlaying, displayPower) {
   displayPower?.on('change', forward('screenPower'))
 
   io.on('connection', async socket => {
-    log.debug(`Kiosk connected (${io.engine.clientsCount} in total)`)
+    log.info(`Kiosk connected (${io.engine.clientsCount} in total)`)
 
     // Device not set up: the kiosk shows the QR code right away
     if (!nowPlaying.isConfigured()) {
@@ -48,6 +48,6 @@ export function attachSocketHandlers(io, nowPlaying, displayPower) {
     })
 
     socket.on('error', error => log.debug('Socket error:', error.message))
-    socket.on('disconnect', () => log.debug('Kiosk disconnected'))
+    socket.on('disconnect', reason => log.info(`Kiosk disconnected (${reason})`))
   })
 }

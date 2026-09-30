@@ -19,6 +19,8 @@ Work towards v1.0.0 (roadmap phases 4–6).
 - Unit and integration tests with Vitest (server logic, full setup flow against a simulated
   Plex, key React components), ESLint and Prettier, CI on GitHub Actions.
 - Release workflow creating GitHub releases from this changelog.
+- Acceptance test scripts for the device (`scripts/pi/`): 72-hour soak monitor with a
+  pass/fail report, recovery test after a Plex restart or a Wi-Fi drop.
 - Interface in English and Italian, with a language setting (automatic = device language);
   API errors carry codes translated by the interface.
 
@@ -26,7 +28,8 @@ Work towards v1.0.0 (roadmap phases 4–6).
 
 - The server is split into modules with an explicit screen state machine (setup, login,
   idle, playing, paused, resume); `index.js` is only the bootstrap.
-- Plex real-time connection with exponential backoff; polling only while it is down.
+- Plex real-time connection with exponential backoff (capped at 20 s, so the app recovers
+  within a minute of Plex coming back); polling only while it is down.
 - Leveled logs (`LOG_LEVEL`), pm2-logrotate, PM2 memory limits for the Pi Zero 2 W.
 - Configuration stored outside the repository (`/var/lib/now-playing/config.json`),
   permissions 600, atomic writes; the old `server/src/config/app.json` is moved

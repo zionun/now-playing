@@ -16,6 +16,7 @@ This guide covers a Raspberry Pi set up from scratch, kiosk mode, configuration,
 - [Updating](#updating)
 - [Backup and restore](#backup-and-restore)
 - [Troubleshooting](#troubleshooting)
+- [v1.0 acceptance tests](#v10-acceptance-tests)
 - [Development](#development)
 
 ---
@@ -343,6 +344,37 @@ sudo dietpi-software install 9 17 113   # Node.js, Git, Chromium
 ```
 
 **No display / touch not working** — for HDMI try `hdmi_force_hotplug=1` in `/boot/config.txt`; for the HyperPixel make sure its installer completed and the overlay is in `/boot/config.txt`.
+
+## v1.0 acceptance tests
+
+Tests to run on the real device before releasing v1.0 (scripts in `/opt/now-playing/scripts/pi/`).
+
+**72 hours without restarts or memory growth**
+
+```bash
+# start (keeps running after you log out; one sample every 5 minutes for 72 hours)
+sudo nohup /opt/now-playing/scripts/pi/soak-monitor.sh > /dev/null 2>&1 &
+
+# at any time, and at the end
+node /opt/now-playing/scripts/pi/soak-report.mjs
+```
+
+The report checks the duration (at least 72 hours), PM2 restarts (none) and the memory trend after the first hour (at most 2 MB per day), and lists free system memory, CPU temperature and any period in which `/api/health` was not "ok". The samples are in `/var/log/now-playing-soak.csv`.
+
+**Recovery within a minute**
+
+```bash
+cd /opt/now-playing/scripts/pi
+sudo ./recovery-test.sh status      # app and Plex state now
+sudo ./recovery-test.sh plex        # then restart the Plex server
+sudo ./recovery-test.sh wifi 60     # Wi-Fi off for 60 s, then back on
+```
+
+`plex` detects the outage by itself and measures how long the app takes to be back to normal (health "ok", real-time updates) once Plex answers again. `wifi` turns the Wi-Fi off and on by itself: the SSH connection drops, the test keeps running and writes the result to `/var/log/now-playing-recovery.log` (`tail` it after reconnecting). Both end with `RESULT: PASS` or `RESULT: FAIL`.
+
+**Install from scratch**: on a freshly flashed SD card follow [steps 2–7](#2-flash-dietpi) without editing any file by hand.
+
+**CI**: the last commit on `main` must be green on GitHub Actions.
 
 ## Development
 

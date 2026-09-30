@@ -6,11 +6,12 @@ import { createLogger } from '../lib/logger.js'
 const log = createLogger('plex-ws')
 
 // 📋 PLEX REAL-TIME EVENTS (WebSocket /:/websockets/notifications)
-// - reconnects with an exponential delay (1s, 2s, 4s... up to 60s)
+// - reconnects with an exponential delay (1s, 2s, 4s... up to 20s: after a
+//   long outage the app must still recover within a minute of Plex coming back)
 // - a single reconnection timer at a time
 // - emits 'open', 'close', 'playing' (list of PlaySessionStateNotification)
 export class PlexEventStream extends EventEmitter {
-  constructor(getUrl, { createSocket = url => new WebSocket(url), backoff = {} } = {}) {
+  constructor(getUrl, { createSocket = url => new WebSocket(url), backoff = { maxMs: 20000 } } = {}) {
     super()
     this.getUrl = getUrl
     this.createSocket = createSocket

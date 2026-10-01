@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Summary of the CSV written by soak-monitor.sh, checked against the v1.0
 // criteria: at least 72 hours, no PM2 restarts, no memory growth.
-// Usage: node soak-report.mjs [/var/log/now-playing-soak.csv]
+// Usage: node soak-report.mjs [/var/lib/now-playing/soak.csv]
 import { readFileSync } from 'fs'
 
 const MIN_HOURS = 72
@@ -9,10 +9,19 @@ const MIN_HOURS = 72
 // hour, when caches have filled up)
 const MAX_GROWTH_MB_PER_DAY = 2
 
-const file = process.argv[2] || '/var/log/now-playing-soak.csv'
-const [header, ...lines] = readFileSync(file, 'utf8').trim().split('\n')
-const keys = header.split(',')
+// Gap between two samples that means the monitor was not running (or
+// samples were lost)
+const MAX_GAP_MIN = 30
+const COLUMNS =
+  'timestamp,pm2_status,pm2_restarts,app_rss_mb,app_uptime_min,mem_available_mb,cpu_temp_c,health_status,plex_reachable,plex_updates,lastfm_reachable,screen'
+
+const file = process.argv[2] || '/var/lib/now-playing/soak.csv'
+const lines = readFileSync(file, 'utf8').trim().split('\n')
+// The header is the first line, if the file still has it (an older monitor
+// lost it when the file was emptied); header lines elsewhere are skipped
+const keys = (lines[0].startsWith('timestamp,') ? lines[0] : COLUMNS).split(',')
 const rows = lines
+  .filter(line => line && !line.startsWith('timestamp,'))
   .map(line => Object.fromEntries(line.split(',').map((value, i) => [keys[i], value])))
   .map(row => ({ ...row, time: new Date(row.timestamp).getTime() }))
   .filter(row => !Number.isNaN(row.time))
@@ -54,17 +63,25 @@ const problems = []
 let current = null
 for (const row of rows) {
   const bad = row.health_status !== 'ok'
-  if (bad && !current) current = { from: row.timestamp, to: row.timestamp, status: row.health_status, count: 1 }
+  if (bad && !current)
+    current = { from: row.timestamp, to: row.timestamp, status: row.health_status, count: 1 }
   else if (bad) Object.assign(current, { to: row.timestamp, count: current.count + 1 })
-  else if (current) problems.push(current), (current = null)
+  else if (current) (problems.push(current), (current = null))
 }
 if (current) problems.push(current)
+
+// Gaps: periods without samples (monitor stopped, samples lost)
+const gaps = rows
+  .slice(1)
+  .map((row, i) => ({ from: rows[i].timestamp, to: row.timestamp, min: (row.time - rows[i].time) / 60000 }))
+  .filter(gap => gap.min > MAX_GAP_MIN)
 
 const temps = rows.map(r => num(r.cpu_temp_c)).filter(Number.isFinite)
 const available = rows.map(r => num(r.mem_available_mb)).filter(Number.isFinite)
 
 const pass = {
   duration: hours >= MIN_HOURS,
+  continuity: gaps.length === 0,
   restarts: newRestarts === 0 && notOnline.length === 0,
   memory: slopePerDay <= MAX_GROWTH_MB_PER_DAY
 }
@@ -75,6 +92,8 @@ const mark = ok => (ok ? 'PASS' : 'FAIL')
 console.log(`Samples: ${rows.length}, from ${first.timestamp} to ${last.timestamp}`)
 console.log('')
 console.log(`[${mark(pass.duration)}] Duration: ${fmt(hours)} h (at least ${MIN_HOURS} h)`)
+console.log(`[${mark(pass.continuity)}] Gaps longer than ${MAX_GAP_MIN} min: ${gaps.length}`)
+for (const gap of gaps) console.log(`  ${gap.from} → ${gap.to}  (${fmt(gap.min / 60)} h)`)
 console.log(
   `[${mark(pass.restarts)}] PM2 restarts during the test: ${newRestarts}` +
     (notOnline.length ? `, ${notOnline.length} samples not "online"` : '')
@@ -94,5 +113,6 @@ if (problems.length === 0) {
   for (const p of problems) console.log(`  ${p.from} → ${p.to}  ${p.status} (${p.count} samples)`)
 }
 console.log('')
-console.log(pass.duration && pass.restarts && pass.memory ? 'RESULT: PASS' : 'RESULT: FAIL')
-process.exit(pass.duration && pass.restarts && pass.memory ? 0 : 1)
+const passed = Object.values(pass).every(Boolean)
+console.log(passed ? 'RESULT: PASS' : 'RESULT: FAIL')
+process.exit(passed ? 0 : 1)

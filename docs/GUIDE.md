@@ -383,7 +383,7 @@ sudo nohup /opt/now-playing/scripts/pi/soak-monitor.sh > /dev/null 2>&1 &
 node /opt/now-playing/scripts/pi/soak-report.mjs
 ```
 
-The report checks the duration (at least 72 hours), PM2 restarts (none) and the memory trend after the first hour (at most 2 MB per day), and lists free system memory, CPU temperature and any period in which `/api/health` was not "ok". The samples are in `/var/log/now-playing-soak.csv`.
+The report checks the duration (at least 72 hours), PM2 restarts (none) and the memory trend after the first hour (at most 2 MB per day), and lists free system memory, CPU temperature and any period in which `/api/health` was not "ok". The samples are in `/var/lib/now-playing/soak.csv` (not in `/var/log`, which DietPi keeps in RAM, empties every hour and loses on reboot); a gap of more than 30 minutes between samples fails the test.
 
 **Recovery within a minute**
 

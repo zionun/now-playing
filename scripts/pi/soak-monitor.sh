@@ -6,14 +6,16 @@
 # Usage (on the Raspberry Pi, survives the SSH session ending):
 #   sudo nohup /opt/now-playing/scripts/pi/soak-monitor.sh > /dev/null 2>&1 &
 # Options (environment variables):
-#   SOAK_CSV=/var/log/now-playing-soak.csv   output file (appended to)
+#   SOAK_CSV=/var/lib/now-playing/soak.csv   output file (appended to)
 #   SOAK_INTERVAL=300                        seconds between samples
 #   SOAK_HOURS=72                            stops after this many hours (0 = never)
 #   APP_URL=http://localhost:3001            app address
 
 set -uo pipefail
 
-CSV="${SOAK_CSV:-/var/log/now-playing-soak.csv}"
+# Not in /var/log: on DietPi it is a RAM disk (DietPi-RAMlog) that is emptied
+# every hour and lost on reboot
+CSV="${SOAK_CSV:-/var/lib/now-playing/soak.csv}"
 INTERVAL="${SOAK_INTERVAL:-300}"
 HOURS="${SOAK_HOURS:-72}"
 APP_URL="${APP_URL:-http://localhost:3001}"
@@ -22,9 +24,8 @@ APP_NAME="now-playing"
 command -v pm2 >/dev/null || { echo "pm2 not found"; exit 1; }
 command -v node >/dev/null || { echo "node not found"; exit 1; }
 
-if [ ! -s "$CSV" ]; then
-    echo "timestamp,pm2_status,pm2_restarts,app_rss_mb,app_uptime_min,mem_available_mb,cpu_temp_c,health_status,plex_reachable,plex_updates,lastfm_reachable,screen" >"$CSV"
-fi
+HEADER="timestamp,pm2_status,pm2_restarts,app_rss_mb,app_uptime_min,mem_available_mb,cpu_temp_c,health_status,plex_reachable,plex_updates,lastfm_reachable,screen"
+mkdir -p "$(dirname "$CSV")"
 
 end=$(( $(date +%s) + HOURS * 3600 ))
 echo "Soak monitor started: every ${INTERVAL}s for ${HOURS}h -> $CSV"
@@ -60,10 +61,12 @@ while :; do
           } catch { console.log("unreachable,,,,") }
         })')
 
+    # Header again if the file was removed or emptied in the meantime
+    [ -s "$CSV" ] || echo "$HEADER" >"$CSV"
     echo "$now,$pm2_fields,$mem_available,$temp,$health_fields" >>"$CSV"
 
     if [ "$HOURS" -gt 0 ] && [ "$(date +%s)" -ge "$end" ]; then
-        echo "Soak monitor finished: run: node soak-report.mjs"
+        echo "Soak monitor finished: run: node soak-report.mjs $CSV"
         break
     fi
     sleep "$INTERVAL"

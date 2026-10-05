@@ -23,7 +23,7 @@ The installer copies the app to `/opt/now-playing`, installs only what productio
 
 Then:
 
-1. **Open the screen** — in kiosk mode (see [Kiosk mode](docs/GUIDE.md#6-kiosk-mode)) or at `http://<raspberry-ip>:3001`.
+1. **Open the screen** — in kiosk mode (see [Kiosk mode](docs/GUIDE.md#7-kiosk-mode)) or at `http://<raspberry-ip>:3001`.
 2. **Scan the QR code** shown on the screen with your phone (same Wi-Fi network).
 3. **Follow the three steps** on the phone:
    1. choose the device password
@@ -58,7 +58,7 @@ The **[complete guide](docs/GUIDE.md)** covers everything else:
 
 - [Recommended hardware](docs/GUIDE.md#1-recommended-hardware)
 - [Raspberry Pi from scratch with DietPi](docs/GUIDE.md#2-flash-dietpi) (or [Raspberry Pi OS](docs/GUIDE.md#raspberry-pi-os-alternative))
-- [Kiosk mode](docs/GUIDE.md#6-kiosk-mode) and [performance tuning](docs/GUIDE.md#4-performance-tuning-optional)
+- [Kiosk mode](docs/GUIDE.md#7-kiosk-mode), [HyperPixel 4.0 Square](docs/GUIDE.md#5-hyperpixel-40-square) and [performance tuning](docs/GUIDE.md#6-performance-tuning-optional)
 - [Configuration reference](docs/GUIDE.md#configuration-reference), [updates](docs/GUIDE.md#updating) and [backup](docs/GUIDE.md#backup-and-restore)
 - [Troubleshooting](docs/GUIDE.md#troubleshooting)
 - [Development](docs/GUIDE.md#development)

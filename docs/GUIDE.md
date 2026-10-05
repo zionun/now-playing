@@ -7,10 +7,11 @@ This guide covers a Raspberry Pi set up from scratch, kiosk mode, configuration,
 1. [Recommended hardware](#1-recommended-hardware)
 2. [Flash DietPi](#2-flash-dietpi)
 3. [First boot](#3-first-boot)
-4. [Performance tuning (optional)](#4-performance-tuning-optional)
-5. [Install Now Playing](#5-install-now-playing)
-6. [Kiosk mode](#6-kiosk-mode)
-7. [First setup from your phone](#7-first-setup-from-your-phone)
+4. [Install Now Playing](#4-install-now-playing)
+5. [HyperPixel 4.0 Square](#5-hyperpixel-40-square)
+6. [Performance tuning (optional)](#6-performance-tuning-optional)
+7. [Kiosk mode](#7-kiosk-mode)
+8. [First setup from your phone](#8-first-setup-from-your-phone)
 - [Raspberry Pi OS (alternative)](#raspberry-pi-os-alternative)
 - [Configuration reference](#configuration-reference)
 - [Updating](#updating)
@@ -25,7 +26,7 @@ This guide covers a Raspberry Pi set up from scratch, kiosk mode, configuration,
 
 **Essential**
 - **Raspberry Pi Zero 2 W** — good balance between performance and power consumption
-- **MicroSD card** — SanDisk Extreme 32 GB+ (Class 10, U3): fast I/O matters for a smooth UI
+- **MicroSD card** — SanDisk Extreme 16 GB or more (Class 10, U3): fast I/O matters for a smooth UI
 - **Power supply** — 5 V / 2.5 A (stable power means stable performance)
 
 **Display**
@@ -70,6 +71,7 @@ Raspberry Pi OS works too: see [Raspberry Pi OS (alternative)](#raspberry-pi-os-
    AUTO_SETUP_SSH_SERVER_INDEX=-2
 
    # Node.js (9), Git (17), Chromium (113)
+   # Remove the leading # of the default line, or nothing is installed
    AUTO_SETUP_INSTALL_SOFTWARE_ID=9 17 113
 
    # Chromium resolution
@@ -84,15 +86,18 @@ Raspberry Pi OS works too: see [Raspberry Pi OS (alternative)](#raspberry-pi-os-
    ```
    No spaces around `=`, single quotes around name and password. The Pi Zero only supports 2.4 GHz networks.
 
+   These settings are already in both files: change the existing lines instead of adding new ones. Several of them, `AUTO_SETUP_INSTALL_SOFTWARE_ID` in particular, are commented out by default: **remove the leading `#`**, otherwise they are ignored (with `AUTO_SETUP_INSTALL_SOFTWARE_ID` still commented out, Node.js, Git and Chromium are not installed).
+
 4. **Eject** the card and put it in the Raspberry Pi.
 
 ## 3. First boot
 
 1. **Power on and wait** 5–10 minutes: DietPi resizes the filesystem, connects to Wi-Fi, updates the system and installs Node.js, Git and Chromium.
-2. **Find the IP address** in your router's admin panel (device `nowplaying`), or from a computer on the same network:
+2. **Find the IP address** in the list of connected devices of your router or access point (device `nowplaying`, or a Raspberry Pi network card). From a computer on the same network you can also try:
    ```bash
-   nmap -sn 192.168.1.0/24 | grep -A2 "nowplaying\|Raspberry"
+   nmap -sn 192.168.1.0/24 | grep -B2 "nowplaying\|Raspberry"
    ```
+   `nmap` often can't resolve the host name (it depends on the router's DNS) and may show only the IP address: in that case the router's or access point's device list is the reliable way.
 3. **Connect via SSH** with the password set in `dietpi.txt`:
    ```bash
    ssh root@192.168.1.XXX
@@ -104,40 +109,7 @@ Raspberry Pi OS works too: see [Raspberry Pi OS (alternative)](#raspberry-pi-os-
    ```
 5. **CPU governor**: `dietpi-config` → *Performance Options* → *CPU Governor* → `performance`.
 
-## 4. Performance tuning (optional)
-
-```bash
-echo "
-# Performance optimizations for Now Playing
-arm_freq=1200
-gpu_freq=400
-gpu_mem=128
-over_voltage=2
-
-# Disable unused hardware
-dtparam=audio=off
-dtparam=spi=off
-dtparam=i2c=off
-
-# Network
-dtoverlay=disable-bt
-dtoverlay=disable-wifi-poweroff
-
-# HyperPixel 4.0 Square (comment out if not used)
-dtoverlay=vc4-kms-dpi-hyperpixel4sq
-" | sudo tee -a /boot/config.txt
-
-# Temporary files in RAM (fewer SD card writes)
-echo "tmpfs /tmp tmpfs defaults,noatime,nosuid,size=100m 0 0" | sudo tee -a /etc/fstab
-
-# Disable unused services
-sudo systemctl disable avahi-daemon
-sudo systemctl disable triggerhappy
-
-sudo reboot
-```
-
-## 5. Install Now Playing
+## 4. Install Now Playing
 
 ```bash
 git clone https://github.com/zionun/now-playing.git
@@ -156,7 +128,39 @@ The installer:
 
 Every step is checked: if something fails, the script stops and tells you what went wrong.
 
-## 6. Kiosk mode
+## 5. HyperPixel 4.0 Square
+
+**Required** if you use the HyperPixel 4.0 Square: without its driver the screen stays black. Skip this step with an HDMI display.
+
+```bash
+sudo /opt/now-playing/scripts/pi/boot-config.sh dtoverlay=vc4-kms-v3d dtoverlay=vc4-kms-dpi-hyperpixel4sq
+sudo reboot
+```
+
+The HyperPixel driver needs the KMS display driver (`vc4-kms-v3d`), which DietPi's `config.txt` has commented out by default: the script enables both (if `vc4-kms-v3d` is already on, it is left as it is).
+
+`boot-config.sh` changes `config.txt` (`/boot/firmware/config.txt`, or `/boot/config.txt` on older systems) without duplicating anything: an option already there, even commented out, is changed in place, otherwise it is added. It can be run again safely and keeps a backup in `config.txt.bak`. Check the result with `grep -v '^#' /boot/firmware/config.txt | grep .`.
+
+## 6. Performance tuning (optional)
+
+```bash
+# Moderate overclock (Pi Zero 2 W: 1000 MHz by default) and no Bluetooth
+sudo /opt/now-playing/scripts/pi/boot-config.sh arm_freq=1200 over_voltage=2 gpu_freq=400 dtoverlay=disable-bt
+
+# Temporary files in RAM (fewer SD card writes), if not already set up
+grep -qE '^\S+\s+/tmp\s' /etc/fstab || echo "tmpfs /tmp tmpfs defaults,noatime,nosuid,size=100m 0 0" | sudo tee -a /etc/fstab
+
+sudo reboot
+```
+
+Left as they are, on purpose:
+
+- **GPU memory**: keep DietPi's `gpu_mem_256/512/1024` lines. With the KMS driver the screen memory doesn't come from `gpu_mem`, so raising it only takes RAM away from the app.
+- **Audio, SPI, I2C**: already off in DietPi's `config.txt`.
+
+DietPi's `temp_limit=65` drops the overclock above 65 °C: a heat sink keeps it at full speed.
+
+## 7. Kiosk mode
 
 With DietPi:
 
@@ -171,7 +175,7 @@ sudo reboot
 
 `start-kiosk.sh` starts X without a cursor and runs `kiosk.sh`, which waits for the server, opens Chromium full screen on `http://localhost:3001` and reloads the page if it gets stuck. Chromium's translation prompt is disabled by the installer.
 
-## 7. First setup from your phone
+## 8. First setup from your phone
 
 The first time, the screen shows a **"Set up the device"** QR code. Scan it with your phone, on the same Wi-Fi network:
 
@@ -200,14 +204,14 @@ sudo apt update && sudo apt upgrade -y
 # Display packages and Chromium
 sudo apt install -y xserver-xorg xinit chromium
 
-# HyperPixel (if used)
-curl https://get.pimoroni.com/hyperpixel4 | bash
-sudo reboot
-
 # Install the app
 git clone https://github.com/zionun/now-playing.git
 cd now-playing
 sudo ./install.sh
+
+# HyperPixel 4.0 Square (if used; see step 5)
+sudo /opt/now-playing/scripts/pi/boot-config.sh dtoverlay=vc4-kms-v3d dtoverlay=vc4-kms-dpi-hyperpixel4sq
+sudo reboot
 
 # Autologin: sudo raspi-config → System Options → Boot → Console Autologin,
 # then start /opt/now-playing/start-kiosk.sh at login (e.g. from ~/.bash_profile).
@@ -216,7 +220,7 @@ sudo ./install.sh
 
 ## Configuration reference
 
-All settings are made from the phone (see [First setup](#7-first-setup-from-your-phone)) and saved in:
+All settings are made from the phone (see [First setup](#8-first-setup-from-your-phone)) and saved in:
 
 ```
 /var/lib/now-playing/config.json      (server running as root, e.g. on the Raspberry)
@@ -367,7 +371,7 @@ cat /var/tmp/dietpi/logs/dietpi-firstrun-setup.log
 sudo dietpi-software install 9 17 113   # Node.js, Git, Chromium
 ```
 
-**No display / touch not working** — for HDMI try `hdmi_force_hotplug=1` in `/boot/config.txt`; for the HyperPixel make sure its installer completed and the overlay is in `/boot/config.txt`.
+**No display / touch not working** — for HDMI try `sudo /opt/now-playing/scripts/pi/boot-config.sh hdmi_force_hotplug=1`; for the HyperPixel check that `dtoverlay=vc4-kms-v3d` and `dtoverlay=vc4-kms-dpi-hyperpixel4sq` are in `/boot/firmware/config.txt` and not commented out (see [step 5](#5-hyperpixel-40-square)).
 
 ## v1.0 acceptance tests
 
@@ -396,7 +400,7 @@ sudo ./recovery-test.sh wifi 60     # Wi-Fi off for 60 s, then back on
 
 `plex` detects the outage by itself and measures how long the app takes to be back to normal (health "ok", real-time updates) once Plex answers again. `wifi` turns the Wi-Fi off and on by itself: the SSH connection drops, the test keeps running and writes the result to `/var/log/now-playing-recovery.log` (`tail` it after reconnecting). Both end with `RESULT: PASS` or `RESULT: FAIL`.
 
-**Install from scratch**: on a freshly flashed SD card follow [steps 2–7](#2-flash-dietpi) without editing any file by hand.
+**Install from scratch**: on a freshly flashed SD card follow [steps 2–8](#2-flash-dietpi) without editing any file by hand.
 
 **CI**: the last commit on `main` must be green on GitHub Actions.
 

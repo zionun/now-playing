@@ -25,6 +25,9 @@ Work towards v1.0.0 (roadmap phases 4–6).
   (default 5 minutes, or always on); a tap (which never presses what is underneath),
   music starting, a settings change or a change in the health state turn it back on.
   Only on a HyperPixel 4.0 Square, detected at startup (`HYPERPIXEL=1`/`0` to force).
+- `scripts/pi/boot-config.sh` sets `config.txt` options in place (no duplicates, commented
+  lines enabled, backup kept), used by the guide for the HyperPixel and the tuning.
+- Pinch-to-zoom is disabled everywhere (kiosk and phone pages).
 - Interface in English and Italian, with a language setting (automatic = device language);
   API errors carry codes translated by the interface.
 
@@ -43,6 +46,11 @@ Work towards v1.0.0 (roadmap phases 4–6).
 - Playback controls are shown only when the player really accepts commands.
 - README split into a quick start and a complete guide (`docs/GUIDE.md`).
 - Code, comments and logs are in English.
+- The on-screen controls stay open after a command (pause then play, several skips) and
+  their countdown restarts.
+- Guide: 16 GB SD card is enough; HyperPixel setup is its own required step; options go
+  to `/boot/firmware/config.txt`; DietPi's GPU memory split is kept; the non-existent
+  `disable-wifi-poweroff` overlay is dropped.
 
 ### Removed
 
@@ -54,6 +62,11 @@ Work towards v1.0.0 (roadmap phases 4–6).
 
 - The screen did not update after startup until a network scan finished.
 - An unreadable configuration file was silently replaced by an empty one.
+- A tap on the kiosk sometimes didn't open the controls, or opened and closed them at
+  once (worse while paused): every kiosk control now reacts to a single pointerdown, and
+  browser gestures are off on the kiosk screens, so a tap is never cancelled.
+- No more zoom effect on the cover art (and other hover effects) after a tap: smoother
+  on the Pi Zero 2 W.
 
 ## [0.9.0] - 2026-09-29
 

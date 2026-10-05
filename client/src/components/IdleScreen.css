@@ -9,11 +9,8 @@
   padding: 4rem 2rem;
   box-sizing: border-box;
   cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
-.idle-screen:hover {
-  opacity: 0.95;
+  /* Kiosk: no browser gestures (pinch, pan), so a tap is never cancelled */
+  touch-action: none;
 }
 
 /* Resume screen styles */
@@ -84,14 +81,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  transition: all var(--transition-fast);
   box-shadow: var(--shadow-button);
-}
-
-.resume-button:hover {
-  background: var(--accent-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-button-hover);
 }
 
 .resume-icon {
@@ -279,8 +269,6 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  backdrop-filter: blur(4px);
   z-index: 10;
   color: var(--accent-color);
   /* Touch optimizations */
@@ -294,13 +282,6 @@
 .play-overlay svg {
   width: 1.5rem;
   height: 1.5rem;
-}
-
-.play-overlay:hover {
-  background: rgba(0, 0, 0, 0.9);
-  border-color: #f5b000;
-  color: #f5b000;
-  transform: translate(-50%, -50%) scale(1.1);
 }
 
 .play-overlay:disabled,
@@ -392,7 +373,6 @@
 
 .album-item {
   overflow: hidden;
-  transition: transform var(--transition-fast);
   position: relative;
   text-align: center;
   aspect-ratio: 1 / 1;
@@ -453,11 +433,6 @@
 .album-item {
   position: relative;
   overflow: hidden;
-  transition: transform var(--transition-fast);
-}
-
-.album-item:hover {
-  transform: scale(1.05);
 }
 
 .album-artwork {

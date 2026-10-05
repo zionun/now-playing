@@ -23,7 +23,7 @@ const showPlaceholder = e => {
   e.target.src = PLACEHOLDER
 }
 
-const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls = false }) => {
+const IdleScreen = ({ hasResumeOption, resumeTrack, hasControls = false }) => {
   const t = useT()
   const { socket, configVersion, display } = useWebSocket()
   // Last.fm when idle can be turned off from the phone (Settings → Screen)
@@ -31,7 +31,6 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls =
   const [lastfmData, setLastfmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
-  const [lastTouchTime, setLastTouchTime] = useState(0)
 
   useEffect(() => {
     if (!lastfmEnabled) {
@@ -60,15 +59,10 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls =
     // configVersion: Last.fm just linked or changed from the phone
   }, [hasResumeOption, configVersion, lastfmEnabled])
 
+  // pointerdown only: once per tap (touch or mouse), as soon as it starts
   const handleResume = event => {
-    event.stopPropagation() // don't trigger onInteraction
     event.preventDefault()
     if (!hasControls) return
-
-    // A tap fires touchstart and then click: handle it only once
-    if (event.type === 'click' && Date.now() - lastTouchTime < 300) return
-    if (event.type === 'touchstart') setLastTouchTime(Date.now())
-
     if (socket && socket.connected) {
       socket.emit('resumeFromPause')
     }
@@ -86,12 +80,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls =
   if (!lastfmEnabled) {
     content = nothingPlaying(
       hasResumeOption && resumeTrack && (
-        <button
-          className="idle-resume-button"
-          onClick={handleResume}
-          onTouchStart={handleResume}
-          disabled={!hasControls}
-        >
+        <button className="idle-resume-button" onPointerDown={handleResume} disabled={!hasControls}>
           ▶ {resumeTrack.title} — {resumeTrack.artist}
         </button>
       )
@@ -132,8 +121,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls =
               />
               <button
                 className={`play-overlay ${!hasControls ? 'disabled' : ''}`}
-                onClick={handleResume}
-                onTouchStart={handleResume}
+                onPointerDown={handleResume}
                 disabled={!hasControls}
                 aria-label={t('idle.resume')}
               >
@@ -202,11 +190,7 @@ const IdleScreen = ({ onInteraction, hasResumeOption, resumeTrack, hasControls =
     )
   }
 
-  return (
-    <div className="idle-screen" onClick={onInteraction} onTouchStart={onInteraction}>
-      {content}
-    </div>
-  )
+  return <div className="idle-screen">{content}</div>
 }
 
 export default IdleScreen

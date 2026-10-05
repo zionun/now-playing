@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import { useT } from '../i18n'
 import './TouchOverlay.css'
@@ -6,6 +5,7 @@ import './TouchOverlay.css'
 const TouchOverlay = ({
   show,
   onClose,
+  onActivity,
   track,
   isPlaying,
   activeUsers,
@@ -16,71 +16,33 @@ const TouchOverlay = ({
 }) => {
   const t = useT()
   const { sendMediaControl, switchUser } = useWebSocket()
-  const [lastTouchTime, setLastTouchTime] = useState(0)
+  // Every handler is on pointerdown: it comes once per tap (touch or mouse),
+  // as soon as the finger touches the screen. The touch, mouse and click
+  // events the browser makes from the same tap have no handler here.
 
-  const handleControlClick = (action, event) => {
+  // A command keeps the controls open (pause, then play again, or several
+  // skips in a row) and restarts their countdown
+  const handleControl = (action, event) => {
     event.stopPropagation()
-    event.preventDefault() // Prevent default behavior
-    if (!hasControls) return // Do nothing if controls are disabled
-
-    // Avoid touch/click event duplication
-    const now = Date.now()
-    if (now - lastTouchTime < 300) return // Ignore click if there was a touch in the last 300ms
-
+    event.preventDefault()
+    if (!hasControls) return
     sendMediaControl(action)
-    onClose() // Close overlay immediately after pressing a control
-  }
-
-  const handleControlTouch = (action, event) => {
-    event.stopPropagation()
-    event.preventDefault() // Prevent default behavior
-    if (!hasControls) return // Do nothing if controls are disabled
-
-    setLastTouchTime(Date.now())
-    sendMediaControl(action)
-    onClose() // Close overlay immediately after pressing a control
+    onActivity?.()
   }
 
   const handleUserSwitch = (playerId, event) => {
     event.stopPropagation()
     event.preventDefault()
-
-    switchUser(playerId) // Use existing function to switch player
-    onClose() // Close overlay after selecting a player
-  }
-
-  const handleUserSwitchTouch = (playerId, event) => {
-    event.stopPropagation()
-    event.preventDefault()
-    setLastTouchTime(Date.now())
-
     switchUser(playerId)
     onClose()
   }
 
-  // Handle click on overlay background to close
-  const handleOverlayClick = event => {
-    // Only if click is directly on overlay (not on its children)
-    if (event.target === event.currentTarget) {
-      event.stopPropagation() // Stop event propagation
-      onClose() // Use specific close function
-    }
-  }
-
-  // Handle touch on overlay background to close
-  const handleOverlayTouch = event => {
-    // Only if touch is directly on overlay (not on its children)
-    if (event.target === event.currentTarget) {
-      event.preventDefault()
-      event.stopPropagation()
-      setLastTouchTime(Date.now())
-      onClose() // Close overlay with touch
-    }
-  }
-
-  // Prevent click propagation on controls
-  const handleContentClick = event => {
+  // A tap outside the controls closes them; one on the content restarts the
+  // countdown
+  const handleOverlayPress = event => {
     event.stopPropagation()
+    if (event.target === event.currentTarget) onClose()
+    else onActivity?.()
   }
 
   // Every player in play (after the filters) can be chosen, not only the
@@ -93,14 +55,9 @@ const TouchOverlay = ({
     <div
       className={`touch-overlay ${show ? 'visible' : ''}`}
       aria-hidden={!show}
-      onClick={handleOverlayClick}
-      onTouchEnd={handleOverlayTouch}
+      onPointerDown={handleOverlayPress}
     >
-      <div
-        className="overlay-content"
-        onClick={handleContentClick}
-        onTouchEnd={e => e.stopPropagation()} // keep touches on the content from closing it
-      >
+      <div className="overlay-content">
         {/* Player switcher (when more than one player is playing) */}
         {showPlayerSwitch && (
           <div className="user-switcher">
@@ -110,8 +67,7 @@ const TouchOverlay = ({
                 <button
                   key={player.id}
                   className={`user-button ${player.id === selectedUser ? 'active' : ''}`}
-                  onClick={e => handleUserSwitch(player.id, e)}
-                  onTouchStart={e => handleUserSwitchTouch(player.id, e)}
+                  onPointerDown={e => handleUserSwitch(player.id, e)}
                 >
                   <span>{player.name || player.title || t('overlay.unnamedPlayer')}</span>
                   {multipleUsers && player.userTitle && <small>{player.userTitle}</small>}
@@ -126,8 +82,7 @@ const TouchOverlay = ({
           <div className="media-controls">
             <button
               className="control-button"
-              onClick={e => handleControlClick('previous', e)}
-              onTouchStart={e => handleControlTouch('previous', e)}
+              onPointerDown={e => handleControl('previous', e)}
               aria-label={t('overlay.previous')}
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -137,8 +92,7 @@ const TouchOverlay = ({
 
             <button
               className="control-button play-pause"
-              onClick={e => handleControlClick(isPlaying ? 'pause' : 'play', e)}
-              onTouchStart={e => handleControlTouch(isPlaying ? 'pause' : 'play', e)}
+              onPointerDown={e => handleControl(isPlaying ? 'pause' : 'play', e)}
               aria-label={isPlaying ? t('overlay.pause') : t('overlay.play')}
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -148,8 +102,7 @@ const TouchOverlay = ({
 
             <button
               className="control-button"
-              onClick={e => handleControlClick('next', e)}
-              onTouchStart={e => handleControlTouch('next', e)}
+              onPointerDown={e => handleControl('next', e)}
               aria-label={t('overlay.next')}
             >
               <svg viewBox="0 0 24 24" fill="currentColor">

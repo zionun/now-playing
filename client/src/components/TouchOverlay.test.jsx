@@ -34,12 +34,28 @@ describe('TouchOverlay', () => {
     expect(container.querySelector('.controls-unavailable')).toBeTruthy()
   })
 
-  test('a control sends the command and closes the overlay', () => {
+  test('a control sends the command once per tap and keeps the overlay open', () => {
     const onClose = vi.fn()
-    render(<TouchOverlay show onClose={onClose} track={track} isPlaying hasControls />)
-    fireEvent.click(screen.getByLabelText('Pause'))
+    const onActivity = vi.fn()
+    render(
+      <TouchOverlay show onClose={onClose} onActivity={onActivity} track={track} isPlaying hasControls />
+    )
+    const pause = screen.getByLabelText('Pause')
+    // A tap: pointerdown, then the touch/mouse/click events made from it
+    fireEvent.pointerDown(pause)
+    fireEvent.touchEnd(pause)
+    fireEvent.click(pause)
+    expect(sendMediaControl).toHaveBeenCalledTimes(1)
     expect(sendMediaControl).toHaveBeenCalledWith('pause')
-    expect(onClose).toHaveBeenCalled()
+    expect(onActivity).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  test('a tap outside the controls closes the overlay', () => {
+    const onClose = vi.fn()
+    const { container } = render(<TouchOverlay show onClose={onClose} track={track} isPlaying hasControls />)
+    fireEvent.pointerDown(container.querySelector('.touch-overlay'))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   test('player switcher appears only with several players of the same user', () => {
@@ -59,7 +75,7 @@ describe('TouchOverlay', () => {
         selectedUser="a"
       />
     )
-    fireEvent.click(screen.getByText('Living room'))
+    fireEvent.pointerDown(screen.getByText('Living room'))
     expect(switchUser).toHaveBeenCalledWith('b')
   })
 

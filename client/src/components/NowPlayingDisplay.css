@@ -8,11 +8,8 @@
   overflow: hidden;
   background: var(--primary-bg);
   cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
-.now-playing-container:hover {
-  opacity: 0.95;
+  /* Kiosk: no browser gestures (pinch, pan), so a tap is never cancelled */
+  touch-action: none;
 }
 
 /* Background artwork with blur effect */
@@ -50,11 +47,6 @@
   border-radius: var(--border-radius);
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  transition: transform var(--transition-medium);
-}
-
-.artwork-container:hover {
-  transform: scale(1.02);
 }
 
 .main-artwork {

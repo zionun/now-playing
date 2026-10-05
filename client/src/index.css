@@ -12,6 +12,8 @@ body {
   height: 100%;
   width: 100%;
   overflow: hidden; /* Kiosk mode - prevent scrolling */
+  /* No pinch-to-zoom or double-tap zoom anywhere; scrolling still works */
+  touch-action: pan-x pan-y;
 }
 
 body {

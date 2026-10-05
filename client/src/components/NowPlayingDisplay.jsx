@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useWebSocket } from '../context/WebSocketContext'
 import TouchOverlay from './TouchOverlay'
 import IdleScreen from './IdleScreen'
@@ -12,10 +12,9 @@ const NowPlayingDisplay = () => {
   // On-screen controls duration, chosen from the phone (Settings → Screen)
   const controlsTimeout = display?.showControlsTimeout || 4000
   const [showOverlay, setShowOverlay] = useState(false)
-  const [overlayTimeout, setOverlayTimeout] = useState(null)
+  const hideTimer = useRef(null)
   const [interpolatedProgress, setInterpolatedProgress] = useState(0)
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
-  const [lastCloseTime, setLastCloseTime] = useState(0)
 
   // Apply kiosk mode styles (no scroll) for the main display
   useEffect(() => {
@@ -59,58 +58,29 @@ const NowPlayingDisplay = () => {
     return () => clearInterval(interval)
   }, [nowPlaying?.isPlaying, nowPlaying?.track?.duration, lastUpdateTime])
 
-  const handleInteraction = () => {
-    // Prevent multiple calls from touch + click
-    const now = Date.now()
+  // The controls hide by themselves after the chosen time; every use of
+  // them (a command, another tap) starts the countdown again
+  const startHideTimer = useCallback(() => {
+    clearTimeout(hideTimer.current)
+    hideTimer.current = setTimeout(() => setShowOverlay(false), controlsTimeout)
+  }, [controlsTimeout])
 
-    // Prevent interaction if overlay is already visible
-    if (showOverlay) {
-      return
-    }
-
-    // Prevent immediate reopening if overlay was closed recently
-    if (now - lastCloseTime < 500) {
-      // 500ms delay after closing
-      return
-    }
-
-    // Clear existing timeout
-    if (overlayTimeout) {
-      clearTimeout(overlayTimeout)
-    }
-
-    setShowOverlay(true)
-
-    // Set new timeout to hide overlay - longer to give time for animations
-    const newTimeout = setTimeout(() => {
-      setShowOverlay(false)
-    }, controlsTimeout)
-
-    setOverlayTimeout(newTimeout)
-  }
-
-  const handleCloseOverlay = () => {
-    // Close overlay immediately when clicking outside
+  const closeOverlay = useCallback(() => {
+    clearTimeout(hideTimer.current)
     setShowOverlay(false)
+  }, [])
 
-    // Clean up existing timeout
-    if (overlayTimeout) {
-      clearTimeout(overlayTimeout)
-      setOverlayTimeout(null)
-    }
+  useEffect(() => () => clearTimeout(hideTimer.current), [])
 
-    // Update close timestamp to prevent immediate reopening
-    setLastCloseTime(Date.now())
+  // A tap anywhere opens the controls. pointerdown only: it comes once per
+  // tap, as soon as the finger touches the screen, and unlike touchend/click
+  // it isn't lost when the finger moves slightly. The touch, mouse and click
+  // events the browser makes from the same tap have no handler, so they
+  // can't close the controls just opened.
+  const openOverlay = () => {
+    setShowOverlay(true)
+    startHideTimer()
   }
-
-  // Clean up timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (overlayTimeout) {
-        clearTimeout(overlayTimeout)
-      }
-    }
-  }, [overlayTimeout])
 
   // The ⚙︎ settings button is always shown on the idle, Last.fm and loading
   // screens, but on the now playing screen only while the controls are open.
@@ -157,7 +127,6 @@ const NowPlayingDisplay = () => {
   if ((!nowPlaying.isPlaying && !nowPlaying.isPaused) || nowPlaying.hasResumeOption) {
     return withSettings(
       <IdleScreen
-        onInteraction={handleInteraction}
         hasResumeOption={nowPlaying.hasResumeOption}
         resumeTrack={nowPlaying.resumeTrack}
         hasControls={nowPlaying.hasControls}
@@ -174,7 +143,7 @@ const NowPlayingDisplay = () => {
   }
 
   return withSettings(
-    <div className="now-playing-container" onTouchEnd={handleInteraction} onClick={handleInteraction}>
+    <div className="now-playing-container" onPointerDown={showOverlay ? undefined : openOverlay}>
       {/* Background artwork with blur effect */}
       <div className="background-artwork" style={{ backgroundImage: `url(${getArtwork()})` }} />
 
@@ -225,7 +194,8 @@ const NowPlayingDisplay = () => {
       {/* Touch overlay with controls */}
       <TouchOverlay
         show={showOverlay}
-        onClose={handleCloseOverlay}
+        onClose={closeOverlay}
+        onActivity={startHideTimer}
         track={track}
         isPlaying={nowPlaying.isPlaying}
         activeUsers={nowPlaying.activeUsers}

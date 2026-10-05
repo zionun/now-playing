@@ -33,6 +33,7 @@ rm -rf "$PROFILE"
 #    screen size, so the window is sized explicitly.
 #    --no-memcheck avoids the "less than 1 GB of RAM" warning of the Raspberry Pi wrapper.
 #    Translation is also disabled by policy (/etc/chromium/policies/managed).
+#    --disable-pinch: no pinch-to-zoom on the touchscreen (the page blocks it too).
 #    --lang sets the browser language, followed by the app when its language
 #    setting is "Automatic".
 chromium \
@@ -43,6 +44,8 @@ chromium \
   --window-size="$SIZE" \
   --window-position=0,0 \
   --force-device-scale-factor=1 \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
   --default-background-color=ff000000 \
   --noerrdialogs \
   --disable-infobars \

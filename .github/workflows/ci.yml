@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+# Read-only token: CI also runs for pull requests from forks
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

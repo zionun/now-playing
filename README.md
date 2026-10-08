@@ -63,6 +63,10 @@ The **[complete guide](docs/GUIDE.md)** covers everything else:
 - [Troubleshooting](docs/GUIDE.md#troubleshooting)
 - [Development](docs/GUIDE.md#development)
 
+## Contributing
+
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security problems privately, as described in [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

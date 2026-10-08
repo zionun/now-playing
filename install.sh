@@ -1,6 +1,9 @@
 #!/bin/bash
 # Install script for Raspberry Pi (DietPi / Raspberry Pi OS)
-# Run as root from the cloned repository: sudo ./install.sh
+# Run as root from the cloned repository:
+#   sudo ./install.sh                    latest released version
+#   sudo ./install.sh --main             latest commit on main, even if not released
+#   sudo ./install.sh --version v1.0.0   a specific version
 
 set -euo pipefail
 
@@ -9,6 +12,10 @@ NODE_MAJOR_REQUIRED=20
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 fail() { echo "❌ $1"; exit 1; }
+
+# shellcheck source=scripts/version-ref.sh
+source "$SOURCE_DIR/scripts/version-ref.sh"
+parse_version_args "$@"
 
 echo "🚀 Installing Now Playing for Plex..."
 
@@ -66,6 +73,13 @@ if [ "$SOURCE_DIR" != "$APP_DIR" ]; then
 fi
 cd "$APP_DIR"
 
+# The version to install: by default the latest release, not whatever was
+# pushed to main after it
+echo "🏷️  Choosing the version..."
+resolve_target || exit 1
+checkout_target || fail "Could not switch to $TARGET_LABEL"
+echo "✅ Installing $TARGET_LABEL"
+
 # Dependencies (exact versions from the lockfiles). Only what production
 # needs: the server without its dev tools; the client packages only for the
 # build, then removed. The root package only has development tools.
@@ -99,7 +113,7 @@ for i in $(seq 1 15); do
 done
 
 echo ""
-echo "✅ Installation completed!"
+echo "✅ Installation completed: $(current_version)"
 echo ""
 echo "📋 Next steps:"
 echo "1. Open the kiosk screen (or reboot the Raspberry Pi)"

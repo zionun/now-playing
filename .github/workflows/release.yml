@@ -1,42 +1,74 @@
 name: Release
 
-# Creates the GitHub release of a version tag, with the text of its CHANGELOG.md section.
-# - automatically when a tag like v1.0.0 is pushed
-# - by hand (Actions → Release → Run workflow) for a tag that already exists,
-#   e.g. one created on an older commit
+# Publishes a GitHub release whenever the version changes on main.
+# - automatically when a push to main (a merged pull request) changes the
+#   version in package.json: the tag vX.Y.Z is created on that commit and the
+#   release gets the text of the version's CHANGELOG.md section
+# - by hand (Actions → Release → Run workflow), e.g. if the automatic run failed:
+#   releases the version currently in package.json on main
+# Nothing happens if the release of that version already exists.
+# The version is changed with: node scripts/bump-version.mjs x.y.z
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: [package.json]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing tag, e.g. v0.9.0'
-        required: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Release notes from CHANGELOG.md
+
+      - name: Version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          for dir in client server; do
+            other=$(node -p "require('./$dir/package.json').version")
+            if [ "$other" != "$VERSION" ]; then
+              echo "::error::$dir/package.json has version $other, package.json has $VERSION"
+              exit 1
+            fi
+          done
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          echo "Version: $VERSION"
+
+      - name: Already released?
         env:
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::$TAG is already released, nothing to do"
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Release notes from CHANGELOG.md
+        if: env.SKIP != '1'
         run: |
           node scripts/release-notes.mjs "$TAG" > release-notes.md
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
           # 0.x versions and versions like 1.0.0-rc.1 are pre-releases
           if [[ "$TAG" =~ ^v0\. || "$TAG" == *-* ]]; then
             echo "PRERELEASE=--prerelease" >> "$GITHUB_ENV"
           fi
-      - name: Create the GitHub release
+
+      - name: Create the tag and the GitHub release
+        if: env.SKIP != '1'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --verify-tag $PRERELEASE
+        run: |
+          # A tag pushed by hand is kept; otherwise it is created on this commit
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --verify-tag $PRERELEASE
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --target "$GITHUB_SHA" $PRERELEASE
+          fi

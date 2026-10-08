@@ -28,6 +28,12 @@ Work towards v1.0.0 (roadmap phases 4–6).
 - `scripts/pi/boot-config.sh` sets `config.txt` options in place (no duplicates, commented
   lines enabled, backup kept), used by the guide for the HyperPixel and the tuning.
 - Pinch-to-zoom is disabled everywhere (kiosk and phone pages).
+- Automatic releases: when a merged pull request changes the version in `package.json`, the
+  Release workflow tags it and publishes the GitHub release; `scripts/bump-version.mjs`
+  sets the version everywhere and dates the CHANGELOG section.
+- `update.sh` and `install.sh` install the latest release by default; `--main` for the
+  latest commit, `--version vX.Y.Z` for a specific version (rollback), `--force` to
+  reinstall.
 - Interface in English and Italian, with a language setting (automatic = device language);
   API errors carry codes translated by the interface.
 

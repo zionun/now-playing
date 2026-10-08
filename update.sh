@@ -1,5 +1,8 @@
 #!/bin/bash
-# Update script: run as root from /opt/now-playing (sudo ./update.sh)
+# Update script: run as root from /opt/now-playing
+#   sudo ./update.sh                    latest released version
+#   sudo ./update.sh --main             latest commit on main, even if not released
+#   sudo ./update.sh --version v1.0.0   a specific version (also a rollback)
 
 set -euo pipefail
 
@@ -7,17 +10,51 @@ APP_DIR="/opt/now-playing"
 
 fail() { echo "❌ $1"; exit 1; }
 
-echo "🔄 Updating Now Playing for Plex..."
-
 [ "$EUID" -eq 0 ] || fail "Please run as root (use sudo)"
 [ "$(pwd)" = "$APP_DIR" ] || fail "Run this script from $APP_DIR: cd $APP_DIR && sudo ./update.sh"
 
-# The configuration lives outside the repository (/var/lib/now-playing),
-# so updating the code never touches it. An old server/src/config/app.json
-# is ignored by git and moved there automatically when the server starts.
-echo "📥 Downloading the latest version..."
-git fetch origin
-git reset --hard origin/main
+# Run from a copy: git replaces this file during the update, and bash reads
+# a script while running it
+if [ "${UPDATE_FROM_COPY:-}" != "1" ]; then
+    copy=$(mktemp /tmp/now-playing-update.XXXXXX)
+    cp "$APP_DIR/update.sh" "$copy"
+    UPDATE_FROM_COPY=1 exec bash "$copy" "$@"
+fi
+# bash keeps the copy open: it can already be removed
+case "$0" in /tmp/now-playing-update.*) rm -f "$0" ;; esac
+
+# shellcheck source=scripts/version-ref.sh
+source "$APP_DIR/scripts/version-ref.sh"
+
+# Second run, started below by the previous version of this script once the
+# new code is in place: the remaining steps are those of the new version
+if [ "${1:-}" = "--continue" ]; then
+    shift
+    echo "✅ Code now at $(current_version)"
+else
+    parse_version_args "$@"
+
+    echo "🔄 Updating Now Playing for Plex..."
+    echo "📥 Checking for updates..."
+    resolve_target || exit 1
+    echo "   installed: $(current_version)"
+    echo "   available: $TARGET_LABEL"
+    if [ "$(git rev-parse HEAD)" = "$TARGET_REF" ] && [ "$FORCE" -ne 1 ]; then
+        echo "✅ Already up to date (sudo ./update.sh --force to reinstall anyway)"
+        exit 0
+    fi
+
+    # The configuration lives outside the repository (/var/lib/now-playing),
+    # so updating the code never touches it. An old server/src/config/app.json
+    # is ignored by git and moved there automatically when the server starts.
+    checkout_target || fail "Could not switch to $TARGET_LABEL"
+    # Go on with the update steps of the version just put in place; an older
+    # version (rollback) without this mechanism goes on with these steps
+    if grep -q -- '"--continue"' "$APP_DIR/update.sh"; then
+        exec bash "$APP_DIR/update.sh" --continue
+    fi
+    echo "✅ Code now at $(current_version)"
+fi
 
 # The service keeps running during the update: it is reloaded at the end.
 # Dependencies (exact versions from the lockfiles). Only what production
@@ -56,7 +93,7 @@ for i in $(seq 1 15); do
 done
 
 echo ""
-echo "✅ Update completed!"
+echo "✅ Update completed: $(current_version)"
 echo ""
 echo "🔧 Useful commands:"
 echo "  pm2 status                      - Check application status"

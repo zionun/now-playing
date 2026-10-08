@@ -19,7 +19,7 @@ cd now-playing
 sudo ./install.sh
 ```
 
-The installer copies the app to `/opt/now-playing`, installs only what production needs, builds the interface and starts it with PM2 at boot.
+The installer copies the app to `/opt/now-playing`, puts in place the latest released version, installs only what production needs, builds the interface and starts it with PM2 at boot.
 
 Then:
 
@@ -40,7 +40,7 @@ That's it: play something on Plex and it appears on the screen.
 | Change settings | Tap **⚙︎** in the top-right corner and scan the QR code (password required) |
 | Forgot the password | On the settings page, tap *Forgot password?* and log in to Plex with the account used during setup |
 | Check the status | A small dot in the bottom-left corner appears only when something is wrong (tap it for details), or open `http://<raspberry-ip>:3001/api/health` |
-| Update | `cd /opt/now-playing && sudo ./update.sh` |
+| Update to the latest release | `cd /opt/now-playing && sudo ./update.sh` |
 
 The settings page (on your phone) lets you reconnect Plex or change server, link or unlink Last.fm, set filters (home network only, users, players), change display options and the password, or reset the device.
 

@@ -122,7 +122,7 @@ The installer:
 - installs only the missing system packages (`git`, `curl`, `ca-certificates`, `xdotool` for the kiosk watchdog), without extras and without compilers
 - installs Node.js 20 LTS if the current version is older
 - installs PM2 and **pm2-logrotate** (5 MB files, 3 kept, compressed)
-- copies the app to `/opt/now-playing` (the cloned folder can then be removed)
+- copies the app to `/opt/now-playing` (the cloned folder can then be removed) and puts in place the latest released version (`--main` for the latest commit, `--version vX.Y.Z` for a specific one)
 - installs the server dependencies (production only), builds the interface and removes the build tools
 - starts the app with PM2 at boot and checks that it answers on port 3001
 
@@ -288,7 +288,15 @@ cd /opt/now-playing
 sudo ./update.sh
 ```
 
-The update script downloads the latest version, installs the dependencies, rebuilds the interface, checks log rotation and reloads the app, then verifies that the server answers. The app keeps running until the final reload, and the configuration is not touched (it lives outside the repository).
+By default the update script installs the **latest released version** (the latest [GitHub release](https://github.com/zionun/now-playing/releases)), not changes pushed to `main` after it. It shows the installed and the available version and stops if there is nothing new. Then it installs the dependencies, rebuilds the interface, checks log rotation and reloads the app, and verifies that the server answers. The app keeps running until the final reload, and the configuration is not touched (it lives outside the repository).
+
+```bash
+sudo ./update.sh --main             # latest commit on main, even if not released yet
+sudo ./update.sh --version v1.0.0   # a specific version, also to go back to an older one
+sudo ./update.sh --force            # reinstall the same version
+```
+
+`install.sh` takes the same options: by default it installs the latest release, whatever the cloned folder contains.
 
 ## Backup and restore
 
@@ -344,7 +352,7 @@ Run `sudo ./update.sh` again from `/opt/now-playing`: it reinstalls the dependen
 **Sluggish interface**
 ```bash
 htop
-vcgencmd get_mem gpu        # gpu=128M
+vcgencmd get_mem gpu        # gpu=64M (DietPi's default)
 vcgencmd measure_clock arm  # 1200000000
 cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor   # performance
 ```
@@ -472,17 +480,16 @@ To add a language, copy the `en` block in `messages.js` under a new language cod
 
 Versions follow [SemVer](https://semver.org/) and every change is listed in [CHANGELOG.md](../CHANGELOG.md).
 
-1. Move the `[Unreleased]` entries of `CHANGELOG.md` under a new `## [x.y.z] - YYYY-MM-DD` heading and update the links at the bottom.
-2. Set the version in the three `package.json` files:
-   ```bash
-   for d in . client server; do (cd $d && npm version x.y.z --no-git-tag-version); done
-   ```
-3. Commit, then tag and push:
-   ```bash
-   git tag -a vx.y.z -m "vx.y.z"
-   git push origin main vx.y.z
-   ```
+Releases are published by `.github/workflows/release.yml` when the version in `package.json` changes on `main`:
 
-Pushing the tag runs `.github/workflows/release.yml`, which creates the GitHub release with the text of that version's CHANGELOG section (`0.x` and `-rc` versions are marked as pre-releases). For a tag created on an older commit, run the workflow by hand from *Actions → Release → Run workflow*.
+1. On a branch, set the new version:
+   ```bash
+   node scripts/bump-version.mjs x.y.z
+   ```
+   It sets the version in the three `package.json` files and their lockfiles, and moves the `[Unreleased]` entries of `CHANGELOG.md` under `## [x.y.z] - <today>`, updating the links at the bottom. Review the changelog text.
+2. Open a pull request and merge it once CI is green.
+3. The merge changes `package.json` on `main`: the workflow creates the tag `vx.y.z` on that commit and the GitHub release, with the text of that version's CHANGELOG section (`0.x` and `-rc` versions are marked as pre-releases). From that moment `update.sh` installs it.
+
+Nothing happens when `package.json` changes without a new version, or when the release already exists. If the workflow fails, fix the cause and run it by hand from *Actions → Release → Run workflow*: it releases the version currently in `package.json` on `main`.
 
 Contributions are welcome: fork the repository, create a branch, commit and open a pull request.

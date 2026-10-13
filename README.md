@@ -67,6 +67,10 @@ The **[complete guide](docs/GUIDE.md)** covers everything else:
 
 Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security problems privately, as described in [SECURITY.md](SECURITY.md).
 
+## Credits
+
+The initial inspiration came from [Jason Tate's "Now Playing: My Raspberry Pi Weekend Project" on Chorus.fm](https://chorus.fm/features/articles/now-playing-my-raspberry-pi-weekend-project/). The visual concept and Last.fm integration carried over into my project, but the underlying architecture is completely different.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

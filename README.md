@@ -53,7 +53,7 @@ The settings page (on your phone) lets you reconnect Plex or change server, link
 
 | Phone settings |
 |---|
-| <img src="docs/screenshots/settings_01.png" width="300" alt="Phone settings 1"> <img src="docs/screenshots/settings_02.png" width="300" alt="Phone settings 2"> <img src="docs/screenshots/settings_03.png" width="300" alt="Phone settings 3"> <img src="docs/screenshots/settings_04.png" width="300" alt="Phone settings 4"> <img src="docs/screenshots/settings_05.png" width="300" alt="Phone settings 5"> |
+| <img src="docs/screenshots/settings_01.png" width="267" alt="Phone settings 1"> <img src="docs/screenshots/settings_02.png" width="267" alt="Phone settings 2"> <img src="docs/screenshots/settings_03.png" width="267" alt="Phone settings 3"> <img src="docs/screenshots/settings_04.png" width="267" alt="Phone settings 4"> <img src="docs/screenshots/settings_05.png" width="267" alt="Phone settings 5"> |
 
 
 

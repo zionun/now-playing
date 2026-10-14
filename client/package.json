@@ -16,7 +16,7 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.15.0",
+    "react-router-dom": "^7.18.4",
     "socket.io-client": "^4.7.2"
   },
   "devDependencies": {
@@ -32,8 +32,8 @@
     "globals": "^15.15.0",
     "jsdom": "^22.1.0",
     "prettier": "^3.9.9",
-    "vite": "^4.4.5",
-    "vite-plugin-pwa": "^0.16.4",
-    "vitest": "^0.34.6"
+    "vite": "^7.3.7",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.4"
   }
 }

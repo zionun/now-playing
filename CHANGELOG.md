@@ -6,6 +6,13 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-14
+
+### Security
+
+- Updated dependencies (react-router-dom, vite, vitest, nodemon, and others) to fix
+  vulnerabilities flagged by Dependabot.
+
 ## [1.0.0] - 2026-10-08
 
 First stable release.
@@ -101,6 +108,7 @@ First pre-release (roadmap phases 0–3).
 - A reachable Plex connection is picked after login (plex.tv may advertise unreachable local
   addresses, e.g. Plex running in Docker).
 
-[Unreleased]: https://github.com/zionun/now-playing/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/zionun/now-playing/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/zionun/now-playing/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/zionun/now-playing/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/zionun/now-playing/releases/tag/v0.9.0

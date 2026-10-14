@@ -1,6 +1,6 @@
 {
   "name": "now-playing-plex",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Minimalist Plex now playing display for Raspberry Pi",
   "type": "module",
   "scripts": {

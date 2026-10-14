@@ -44,6 +44,18 @@ That's it: play something on Plex and it appears on the screen.
 
 The settings page (on your phone) lets you reconnect Plex or change server, link or unlink Last.fm, set filters (home network only, users, players), change display options and the password, or reset the device.
 
+## Screenshots
+
+| Now playing | Idle (Last.fm) |
+|---|---|
+| ![Now playing](docs/screenshots/nowplaying_01.png) | ![Idle screen](docs/screenshots/idle.png) |
+| ![Now playing](docs/screenshots/nowplaying_02.png) | |
+
+| Setup (QR code) | Phone settings |
+|---|---|
+| ![Settings QR code](docs/screenshots/settings.png) | ![Phone settings 1](docs/screenshots/settings_01.png) ![Phone settings 2](docs/screenshots/settings_02.png) ![Phone settings 3](docs/screenshots/settings_03.png) ![Phone settings 4](docs/screenshots/settings_04.png) ![Phone settings 5](docs/screenshots/settings_05.png) |
+
+
 ## Where things are
 
 | What | Where |

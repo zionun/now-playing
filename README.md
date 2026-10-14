@@ -48,12 +48,13 @@ The settings page (on your phone) lets you reconnect Plex or change server, link
 
 | Now playing | Idle (Last.fm) |
 |---|---|
-| ![Now playing](docs/screenshots/nowplaying_01.png) | ![Idle screen](docs/screenshots/idle.png) |
-| ![Now playing](docs/screenshots/nowplaying_02.png) | |
+| <img src="docs/screenshots/nowplaying_01.png" width="390" alt="Now playing"> | <img src="docs/screenshots/idle.png" width="390" alt="Idle screen"> |
+| <img src="docs/screenshots/nowplaying_02.png" width="390" alt="Now playing"> | <img src="docs/screenshots/settings.png" width="390" alt="Settings QR code"> |
 
-| Setup (QR code) | Phone settings |
-|---|---|
-| ![Settings QR code](docs/screenshots/settings.png) | ![Phone settings 1](docs/screenshots/settings_01.png) ![Phone settings 2](docs/screenshots/settings_02.png) ![Phone settings 3](docs/screenshots/settings_03.png) ![Phone settings 4](docs/screenshots/settings_04.png) ![Phone settings 5](docs/screenshots/settings_05.png) |
+| Phone settings |
+|---|
+| <img src="docs/screenshots/settings_01.png" width="300" alt="Phone settings 1"> <img src="docs/screenshots/settings_02.png" width="300" alt="Phone settings 2"> <img src="docs/screenshots/settings_03.png" width="300" alt="Phone settings 3"> <img src="docs/screenshots/settings_04.png" width="300" alt="Phone settings 4"> <img src="docs/screenshots/settings_05.png" width="300" alt="Phone settings 5"> |
+
 
 
 ## Where things are
